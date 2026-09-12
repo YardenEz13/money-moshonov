@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+/* Haifa 88 Program — two-colour rotary press on unbleached newsprint.
+   Values lifted from the Stitch design system, not re-invented. */
+@theme {
+  --color-paper:   #F3EFE6;  /* aged newsprint ground */
+  --color-stock:   #FAF8F5;  /* bleached ticket stock */
+  --color-pine:    #184D34;  /* Haifa green — primary ink */
+  --color-ink:     #112818;  /* iron gall — body copy, borders */
+  --color-studio:  #E5B842;  /* broadcast yellow — active, warnings */
+  --color-redcard: #BD382B;  /* ejection red — deficits */
+  --color-rule:    #D3DCD4;  /* ledger grid lines */
+
+  --font-display: "Frank Ruhl Libre", Georgia, serif;
+  --font-body:    "Rubik", system-ui, sans-serif;
+
+  /* the system is strictly sharp: guillotined paper, no rounded corners */
+  --radius-none: 0px;
+}
+
+html { color-scheme: light; }
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* money and dates hold their column across ledger rows */
+.num, bdi { font-variant-numeric: tabular-nums lining-nums; unicode-bidi: isolate; }
+
+/* the only permitted curve is a physical hole-punch; everything else is square */
+.dotted-rule { border-bottom: 2px dotted var(--color-ink); }
+
+/* hard letterpress offset instead of a blurred shadow */
+.press { box-shadow: 3px 3px 0 var(--color-ink); }
+.press:active { box-shadow: 0 0 0 var(--color-ink); }
+
+button { min-block-size: 44px; }
+:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
