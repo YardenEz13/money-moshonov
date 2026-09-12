@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#E7E3D8">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>מהלך · פנקס</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500;700&family=Assistant:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E7E3D8; --wash:#F2EFE7; --ink:#16233A; --rule:#C9C2B0;
+  --pen:#A6342A; --ledger:#3F5E3A;
+  --muted:color-mix(in srgb, var(--ink) 55%, var(--paper));
+  --ui:"Assistant",system-ui,sans-serif; --display:"Frank Ruhl Libre",Georgia,serif;
+  --r:6px; --rc:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--paper); color:var(--ink); font-family:var(--ui); font-size:16px;
+  line-height:1.5; -webkit-font-smoothing:antialiased;
+  display:flex; justify-content:center;
+}
+bdi,.num{font-variant-numeric:tabular-nums lining-nums; unicode-bidi:isolate}
+button,input,select,textarea{font:inherit;color:inherit;background:none;border:0}
+button{cursor:pointer;min-block-size:44px}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:2px}
+
+.app{
+  inline-size:100%; max-inline-size:430px; min-block-size:100dvh;
+  display:flex; flex-direction:column; position:relative;
+  background:var(--paper); box-shadow:0 0 0 1px var(--rule);
+}
+
+/* header */
+.top{
+  position:sticky; inset-block-start:0; z-index:5; background:var(--paper);
+  padding:14px 20px 10px; border-block-end:1px solid var(--rule);
+}
+.top .kicker{font-size:12px;color:var(--muted)}
+.top .line{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.top h1{font-family:var(--display);font-weight:500;font-size:25px;line-height:1.2}
+.top .tot{font-family:var(--display);font-size:20px;font-weight:500;color:var(--pen)}
+
+/* ledger */
+main{flex:1;overflow-y:auto;padding-block-end:32px}
+.day{display:flex;align-items:baseline;gap:10px;padding:18px 20px 6px;font-size:12px;color:var(--muted)}
+.day::after{content:"";flex:1;border-block-end:1px solid var(--rule)}
+.rows{list-style:none;padding-inline:20px}
+.row{
+  display:grid; grid-template-columns:3.1rem 1fr auto; column-gap:10px; row-gap:1px;
+  padding-block:11px; border-block-end:1px solid var(--rule); align-items:baseline;
+}
+.rows .row:last-child{border-block-end:0}
+.row .date{font-size:12px;color:var(--muted)}
+.row .mid{display:flex;align-items:baseline;gap:8px;min-inline-size:0}
+.row .mid b{font-weight:600;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.leader{flex:1;border-block-end:1px dotted var(--rule);transform:translateY(-.28em);min-inline-size:12px}
+.row .amt{font-family:var(--display);font-size:17px;font-weight:500}
+.amt.out{color:var(--pen)} .amt.in{color:var(--ledger)}
+.row .note{grid-column:2/4;font-size:13px;color:var(--muted)}
+.row.task .mid b{font-weight:400}
+.tick{grid-column:3;font-size:13px;color:var(--ledger)}
+.done .mid b{text-decoration:line-through;text-decoration-color:var(--rule);color:var(--muted)}
+.jot{
+  padding:12px 0 16px; border-block-end:1px solid var(--rule); margin-inline:20px;
+  font-family:var(--display); font-size:17px; line-height:1.7;
+}
+.jot .meta{font-family:var(--ui);font-size:12px;color:var(--muted);margin-block-end:6px}
+.empty{padding:60px 32px;text-align:center;color:var(--muted);font-size:15px}
+
+/* month */
+.mpick{
+  position:sticky; inset-block-start:0; z-index:4; background:var(--paper);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:4px 8px; border-block-end:1px solid var(--rule);
+}
+.mpick button{inline-size:44px;block-size:44px;display:grid;place-items:center}
+.mpick button svg{inline-size:20px;block-size:20px;fill:none;stroke:var(--ink);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mpick button[disabled]{opacity:.3;cursor:default}
+.mname{
+  position:relative; font-family:var(--display); font-size:20px; font-weight:500;
+  padding:8px 12px; cursor:pointer; border-block-end:1px dotted var(--rule);
+}
+.mname input{position:absolute;inset:0;opacity:0;inline-size:100%;block-size:100%;cursor:pointer}
+.mname:focus-within{outline:2px solid var(--ink);outline-offset:2px}
+.pad{padding:20px}
+.sum{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:var(--rc);overflow:hidden}
+.sum div{background:var(--wash);padding:14px 16px}
+.sum span{display:block;font-size:12px;color:var(--muted)}
+.sum b{font-family:var(--display);font-size:25px;font-weight:500}
+.cat{padding-block:14px;border-block-end:1px solid var(--rule)}
+.cat .l{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-block-end:8px}
+.cat .l b{font-weight:600}
+.cat .l span{font-family:var(--display);font-size:15px}
+.bar{block-size:6px;background:color-mix(in srgb,var(--rule) 55%,var(--paper));position:relative;overflow:hidden}
+.bar i{position:absolute;inset-block:0;inset-inline-start:0;background:var(--ink)}
+.bar.over i{background:var(--pen)}
+.cap{font-size:12px;color:var(--muted);margin-block-start:6px}
+h2{font-family:var(--display);font-size:20px;font-weight:500;margin-block:28px 0}
+.cat{cursor:pointer}
+.chev{color:var(--muted);font-size:15px}
+.over-tag{font-size:11px;background:var(--pen);color:var(--paper);padding:1px 6px;margin-inline-end:auto}
+.link{font-size:14px;color:var(--ink);text-decoration:underline;padding-block:10px;min-block-size:auto}
+.chip{
+  font-size:13px;border:1px solid var(--ink);padding:4px 10px;min-block-size:auto;
+  margin-block:10px 4px;display:inline-flex;gap:8px;align-items:center;
+}
+
+/* memory */
+.mem{padding-block:14px;border-block-end:1px solid var(--rule);display:flex;gap:12px;align-items:flex-start}
+.mem p{flex:1;font-size:15px}
+.mem .src{display:block;font-size:12px;color:var(--muted);margin-block-start:3px}
+.tag{font-size:11px;border:1px solid var(--rule);border-radius:999px;padding:2px 8px;color:var(--muted);white-space:nowrap;margin-block-start:3px}
+.tag.pend{border-color:var(--pen);color:var(--pen)}
+.x{min-block-size:auto;font-size:20px;color:var(--muted);padding:0 4px;line-height:1}
+
+/* composer */
+.dock{
+  position:sticky; inset-block-end:0; z-index:6; background:var(--paper);
+  border-block-start:1px solid var(--rule); padding-block-end:env(safe-area-inset-bottom);
+}
+.comp{display:flex;align-items:center;gap:8px;padding:10px 12px}
+.comp input{
+  flex:1; background:var(--wash); border:1px solid var(--rule); border-radius:var(--r);
+  padding:12px 14px; min-block-size:44px; font-size:16px;
+}
+.comp input::placeholder{color:var(--muted)}
+.icon{inline-size:44px;block-size:44px;display:grid;place-items:center;border-radius:var(--r)}
+.icon svg{inline-size:22px;block-size:22px;fill:none;stroke:var(--ink);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.send{background:var(--ink)}
+.send svg{stroke:var(--paper)}
+nav{display:flex;border-block-start:1px solid var(--rule)}
+nav button{
+  flex:1; padding:12px 4px 14px; font-size:14px; color:var(--muted);
+  border-block-start:2px solid transparent; margin-block-start:-1px;
+}
+nav button[aria-current]{color:var(--ink);font-weight:600;border-block-start-color:var(--ink)}
+
+/* confirm sheet */
+.scrim{position:fixed;inset:0;background:rgba(22,35,58,.22);opacity:0;pointer-events:none;transition:opacity .2s;z-index:10}
+.sheet{
+  position:fixed; inset-block-end:0; inset-inline:0; margin-inline:auto; max-inline-size:430px;
+  background:var(--wash); border:1px solid var(--rule); border-block-end:0;
+  border-start-start-radius:var(--rc); border-start-end-radius:var(--rc);
+  padding:8px 20px calc(20px + env(safe-area-inset-bottom)); z-index:20;
+  transform:translateY(101%); transition:transform .26s cubic-bezier(.2,.8,.25,1);
+  max-block-size:88dvh; overflow-y:auto;
+}
+body.open .sheet{transform:none}
+body.open .scrim{opacity:1;pointer-events:auto}
+.grip{inline-size:36px;block-size:4px;background:var(--rule);border-radius:2px;margin:6px auto 14px}
+.sheet h3{font-family:var(--display);font-size:20px;font-weight:500}
+.sheet .raw{font-size:13px;color:var(--muted);margin-block-end:14px}
+.card{border:1px solid var(--rule);border-radius:var(--rc);background:var(--paper);padding:2px 14px;margin-block-end:12px}
+.f{display:grid;grid-template-columns:5.5rem 1fr;gap:10px;align-items:center;padding-block:10px;border-block-end:1px solid var(--rule)}
+.card > :last-child{border-block-end:0}
+.f label{font-size:13px;color:var(--muted)}
+.f input,.f select{inline-size:100%;padding-block:4px;font-size:16px}
+.f .big{font-family:var(--display);font-size:25px;font-weight:500;color:var(--pen);display:flex;align-items:baseline;gap:4px}
+.f .big input{inline-size:auto;flex:1;min-inline-size:0}
+.f.low input,.f.low select{border-block-end:1px dashed var(--pen)}
+.f.low label::before{content:"• ";color:var(--pen)}
+.kinds{display:flex;gap:6px;flex-wrap:wrap;padding-block:10px;border-block-end:1px solid var(--rule)}
+.kinds button{min-block-size:34px;padding:4px 12px;font-size:14px;border-radius:999px;border:1px solid var(--rule);color:var(--muted)}
+.kinds button[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.acts{display:flex;gap:10px}
+.acts .p{flex:1;background:var(--ink);color:var(--paper);border-radius:var(--r);font-weight:600}
+.acts .s{padding-inline:18px;color:var(--muted)}
+
+/* toast */
+.toast{
+  position:fixed; inset-block-end:124px; inset-inline:0; margin-inline:auto; z-index:30;
+  inline-size:max-content; max-inline-size:90%;
+  display:flex; align-items:center; gap:16px;
+  background:var(--ink); color:var(--paper); border-radius:var(--r);
+  padding:10px 16px; font-size:14px;
+  transform:translateY(150%); opacity:0; visibility:hidden; transition:transform .24s, opacity .2s, visibility .2s;
+}
+.toast.show{transform:none;opacity:1;visibility:visible}
+.toast button{min-block-size:auto;color:var(--paper);font-weight:600;text-decoration:underline}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="kicker" id="kicker"></div>
+    <div class="line"><h1 id="title"></h1><div class="tot" id="tot"></div></div>
+  </header>
+
+  <main id="main"></main>
+
+  <div class="dock">
+    <form class="comp" id="comp">
+      <input id="q" placeholder="מה קרה?" autocomplete="off" enterkeyhint="done" aria-label="מה קרה?">
+      <button type="button" class="icon" aria-label="הקלטה"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <button class="icon send" aria-label="שלח"><svg viewBox="0 0 24 24"><path d="M20 4 3 11l7 2 2 7z"/></svg></button>
+    </form>
+    <nav id="nav">
+      <button data-t="today" aria-current="page">היום</button>
+      <button data-t="money">כסף</button>
+      <button data-t="journal">יומן</button>
+      <button data-t="memory">זיכרון</button>
+    </nav>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="אישור רישום"></section>
+<div class="toast" id="toast"><span id="toastMsg">נשמר</span><button id="undo">בטל</button></div>
+
+<script>
+const CATS = ["אוכל בחוץ","סופר","תחבורה","דיור","בריאות","ביגוד","בידור","אחר"];
+const BUDGET = {"אוכל בחוץ":60000,"סופר":150000,"תחבורה":40000,"דיור":420000,"בידור":30000};
+const HINTS = {"ארומה":"אוכל בחוץ","קפה":"אוכל בחוץ","סופר":"סופר","רמי לוי":"סופר","שופרסל":"סופר","רכבת":"תחבורה","דלק":"תחבורה","מונית":"תחבורה"};
+
+let tx = [
+  {d:"2026-09-12",m:"ארומה",note:"קפה ומאפה",a:3200,k:"out",c:"אוכל בחוץ"},
+  {d:"2026-09-12",m:"רכבת",a:1650,k:"out",c:"תחבורה"},
+  {d:"2026-09-11",m:"רמי לוי",note:"קניות לשבוע",a:24080,k:"out",c:"סופר"},
+  {d:"2026-09-11",m:"משכורת",a:920000,k:"in",c:"אחר"},
+  {d:"2026-09-10",m:"ארומה",a:2800,k:"out",c:"אוכל בחוץ"},
+  {d:"2026-09-05",m:"שכר דירה",a:410000,k:"out",c:"דיור"},
+  {d:"2026-08-31",m:"שופרסל",note:"סוף חודש",a:31250,k:"out",c:"סופר"},
+  {d:"2026-08-28",m:"סינמה סיטי",a:9800,k:"out",c:"בידור"},
+  {d:"2026-08-24",m:"ארומה",a:3200,k:"out",c:"אוכל בחוץ"},
+  {d:"2026-08-19",m:"דלק",a:28000,k:"out",c:"תחבורה"},
+  {d:"2026-08-14",m:"רמי לוי",a:19940,k:"out",c:"סופר"},
+  {d:"2026-08-11",m:"משכורת",a:920000,k:"in",c:"אחר"},
+  {d:"2026-08-09",m:"קסטרו",note:"נעליים",a:30000,k:"out",c:"ביגוד"},
+  {d:"2026-08-05",m:"שכר דירה",a:410000,k:"out",c:"דיור"},
+  {d:"2026-08-03",m:"ארומה",a:2600,k:"out",c:"אוכל בחוץ"}
+];
+let tasks = [{t:"להזמין תור לרופא",d:"2026-09-12"},{t:"לשלם ארנונה",d:"2026-09-12",done:1}];
+let jots = [{d:"2026-09-12",time:"23:10",b:"יום ארוך אבל נגמר טוב. סגרתי את המצגת ואפילו יצאתי להליכה בערב. הקפה של הבוקר היה מיותר."}];
+let mems = [
+  {c:"שותה תה בבוקר (לפני כן קפה)",s:"יומן · 9.9",k:"inferred"},
+  {c:"גר בחיפה, נוסע ברכבת לעבודה",s:"ידני",k:"stated"},
+  {c:"צמחוני, בלי דגים",s:"ידני",k:"stated"},
+  {c:"מתאמן 3 פעמים בשבוע",s:"יומן · 11.9",k:"pending"}
+];
+
+// dates are ISO in the data, Hebrew-short on screen. Asia/Jerusalem is resolved before writing.
+const TODAY = "2026-09-12", YESTERDAY = "2026-09-11";
+const MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+const dm = iso => +iso.slice(8) + "." + +iso.slice(5,7);           // 2026-09-12 → 12.9
+const mname = m => MONTHS[+m.slice(5,7)-1] + " " + m.slice(0,4);
+const lastDay = m => new Date(+m.slice(0,4), +m.slice(5,7), 0).getDate();
+function shiftMonth(m,n){
+  let y = +m.slice(0,4), i = +m.slice(5,7) - 1 + n;
+  y += Math.floor(i/12); i = (i%12+12)%12;
+  return y + "-" + String(i+1).padStart(2,"0");
+}
+
+// ₪ leading, grouped, two decimals only when there are agorot
+const ils = a => "₪" + (a/100).toLocaleString("he-IL",{minimumFractionDigits: a%100?2:0, maximumFractionDigits:2});
+// a budget you haven't touched is still information, so budgeted categories show at ₪0 too.
+// spend desc; among equals, budgeted first.
+const catNames = per => [...new Set([...Object.keys(BUDGET), ...Object.keys(per)])]
+  .sort((a,b)=>(per[b]||0)-(per[a]||0) || (BUDGET[b]?1:0)-(BUDGET[a]?1:0));
+const $ = s => document.querySelector(s);
+const main = $("#main"), sheet = $("#sheet");
+let tab = "today", month = TODAY.slice(0,7), catsOpen = false, catFilter = null;
+
+console.assert(shiftMonth("2026-01",-1)==="2025-12" && shiftMonth("2026-12",1)==="2027-01"
+  && shiftMonth("2026-09",-13)==="2025-08" && lastDay("2026-02")===28
+  && ils(3200)==="₪32" && ils(24080)==="₪240.80" && ils(920000)==="₪9,200", "date/money helpers broken");
+console.assert(catNames({"סופר":500})[0]==="סופר"        // spend outranks an untouched budget
+  && catNames({"ביגוד":100})[0]==="ביגוד"      // spent-but-unbudgeted still ranks by spend
+  && catNames({"ביגוד":100}).includes("דיור")       // untouched budgets stay on the list
+  && catNames({}).every(c=>BUDGET[c]),                 // nothing spent → only budgeted rows
+  "category ordering broken");
+
+function row(t){
+  if(!t) return "";
+  return `<li class="row ${t.k==="task"?"task":""} ${t.done?"done":""}">
+    <span class="date"><bdi>${dm(t.d)}</bdi></span>
+    <span class="mid"><b>${t.m}</b><i class="leader"></i></span>
+    ${t.k==="task"
+      ? `<span class="tick">${t.done?"✓":""}</span>`
+      : `<span class="amt ${t.k}"><bdi>${ils(t.a)}</bdi></span>`}
+    ${t.note?`<span class="note">${t.note}</span>`:""}
+  </li>`;
+}
+const asTask = t => ({d:t.d, m:t.t, k:"task", done:t.done});
+
+const views = {
+  today(){
+    $("#kicker").textContent = "שישי · 12 בספטמבר";
+    $("#title").textContent = "היום";
+    const today = tx.filter(t=>t.d===TODAY);
+    const out = today.filter(t=>t.k==="out").reduce((s,t)=>s+t.a,0);
+    $("#tot").innerHTML = out ? `<bdi>${ils(out)}</bdi>` : "";
+    const all = [...today, ...tasks.map(asTask)];
+    if(!all.length) return `<p class="empty">עוד לא רשמת כלום היום. מה קרה?</p>`;
+    return `<div class="day">היום</div><ul class="rows">${all.map(row).join("")}</ul>
+      ${jots.filter(j=>j.d===TODAY).map(j=>`<div class="jot"><div class="meta">יומן · <bdi>${j.time}</bdi></div>${j.b}</div>`).join("")}
+      <div class="day">אתמול</div><ul class="rows">${tx.filter(t=>t.d===YESTERDAY).map(row).join("")}</ul>`;
+  },
+  money(){
+    const cur = month === TODAY.slice(0,7);
+    const last = cur ? +TODAY.slice(8) : lastDay(month);
+    $("#kicker").textContent = "";
+    $("#title").textContent = "כסף";
+    $("#tot").innerHTML = "";
+
+    const rows = tx.filter(t => t.d.startsWith(month)).sort((a,b)=>b.d.localeCompare(a.d)); // ISO sorts chronologically
+    const outs = rows.filter(t=>t.k==="out");
+    const out = outs.reduce((s,t)=>s+t.a,0);
+    const inc = rows.filter(t=>t.k==="in").reduce((s,t)=>s+t.a,0);
+    // a part-month compares only against the same stretch of the month before — otherwise the 12th always "wins"
+    const prev = tx.filter(t=>t.d.startsWith(shiftMonth(month,-1)) && t.k==="out"
+                              && +t.d.slice(8) <= last).reduce((s,t)=>s+t.a,0);
+
+    const per = {}; outs.forEach(t=>per[t.c]=(per[t.c]||0)+t.a);
+    const names = catNames(per);
+    const cat = c => {
+      const v = per[c]||0, b = BUDGET[c], over = b && v>b;
+      // no budget → no bar. A full bar would read as "maxed out" when nothing was set.
+      return `<div class="cat" data-cat="${c}"><div class="l"><b>${c}</b>
+        ${over?`<span class="over-tag">חריגה</span>`:""}
+        <span><bdi>${ils(v)}</bdi></span><span class="chev">‹</span></div>
+        ${b ? `<div class="bar ${over?"over":""}"><i style="inline-size:${Math.min(100,v/b*100)}%"></i></div>
+          <div class="cap">מתוך <bdi>${ils(b)}</bdi> · ${over?"חריגה של":"נשאר"} <bdi>${ils(Math.abs(b-v))}</bdi></div>`
+            : `<div class="cap">בלי תקציב</div>`}</div>`;
+    };
+    const cats = names.map(cat).join("");
+    const big = outs.slice().sort((a,b)=>b.a-a.a)[0];
+
+    // RTL: older sits at the inline-start (right), so its chevron points that way. App is RTL-only — nothing to mirror.
+    const picker = `<div class="mpick">
+      <button id="mprev" aria-label="חודש קודם"><svg viewBox="0 0 24 24"><path d="m10 6 6 6-6 6"/></svg></button>
+      <label class="mname">${mname(month)}
+        <input type="month" id="mjump" value="${month}" max="${TODAY.slice(0,7)}" aria-label="בחר חודש"></label>
+      <button id="mnext" aria-label="חודש הבא" ${cur?"disabled":""}><svg viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></svg></button>
+    </div>`;
+
+    if(!rows.length) return picker +
+      `<p class="empty">אין תנועות ב${mname(month).split(" ")[0]}. מה קרה?</p>`;
+
+    const sum = `<div class="sum">
+        <div><span>יצא</span><b style="color:var(--pen)"><bdi>${ils(out)}</bdi></b></div>
+        <div><span>נכנס</span><b style="color:var(--ledger)"><bdi>${ils(inc)}</bdi></b></div>
+      </div>
+      <p class="cap"><bdi>1–${last}</bdi> ב${mname(month).split(" ")[0]} · <bdi>${rows.length}</bdi> תנועות${
+        prev ? ` · ${out>prev?"יותר":"פחות"} מ${cur?"אותם ימים ":""}בחודש שעבר ב־<bdi>${ils(Math.abs(out-prev))}</bdi>` : ""}</p>`;
+
+    if(catsOpen) return picker + `<div class="pad">${sum}
+      <h2>קטגוריות</h2>${cats}</div>`;
+
+    const shown = catFilter ? rows.filter(t=>t.c===catFilter) : rows;
+    return picker + `<div class="pad">${sum}
+      ${big?`<p class="cap">ההוצאה הגדולה · ${big.m} <bdi>${ils(big.a)}</bdi></p>`:""}
+      <h2>קטגוריות</h2>${names.slice(0,3).map(cat).join("")}
+      <button class="link" id="allcats">כל הקטגוריות ←</button>
+      <h2>תנועות</h2>
+      ${catFilter?`<button class="chip" id="clearcat">${catFilter} <span>×</span></button>`:""}
+      <ul class="rows" style="padding-inline:0">${shown.map(row).join("")}</ul>
+    </div>`;
+  },
+  journal(){
+    $("#kicker").textContent = "יומן";
+    $("#title").textContent = "מה כתבתי";
+    $("#tot").innerHTML = "";
+    if(!jots.length) return `<p class="empty">עוד לא כתבת כלום. מה קרה?</p>`;
+    return jots.map(j=>`<div class="day"><bdi>${dm(j.d)}</bdi></div>
+      <div class="jot" style="border-block-end:0;padding-block-end:4px">${j.b}</div>
+      <ul class="rows">${[...tx.filter(t=>t.d===j.d), ...tasks.filter(t=>t.d===j.d&&t.done).map(asTask)].map(row).join("")}</ul>`).join("");
+  },
+  memory(){
+    $("#kicker").textContent = "נשלח לכל בקשה למודל";
+    $("#title").textContent = "מה Gemini יודע עליי";
+    $("#tot").innerHTML = "";
+    return `<div class="pad">${mems.map((m,i)=>`<div class="mem">
+      <p>${m.c}<span class="src">${m.s}</span></p>
+      <span class="tag ${m.k==="pending"?"pend":""}">${m.k==="pending"?"ממתין לאישור":m.k==="inferred"?"הוסק":"נאמר"}</span>
+      <button class="x" data-del="${i}" aria-label="מחק עובדה">×</button></div>`).join("")}
+      <p class="cap" style="margin-block-start:20px">עובדות שהוסקו נשלחות למודל רק אחרי אישור. מספרי כרטיס, סיסמאות ות״ז לא נשמרים אף פעם.</p>
+    </div>`;
+  }
+};
+
+function render(){ main.innerHTML = views[tab](); main.scrollTop = 0; }
+main.addEventListener("change", e=>{
+  if(e.target.id !== "mjump" || !e.target.value) return;
+  month = e.target.value; render();
+});
+
+$("#nav").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-t]"); if(!b) return;
+  tab = b.dataset.t; catsOpen = false; catFilter = null;
+  [...e.currentTarget.children].forEach(c=>c.removeAttribute("aria-current"));
+  b.setAttribute("aria-current","page");
+  render();
+});
+main.addEventListener("click", e=>{
+  const step = e.target.closest("#mprev,#mnext");
+  if(step){ month = shiftMonth(month, step.id==="mnext" ? 1 : -1); return render(); }
+  if(e.target.closest("#allcats")){ catsOpen = true; catFilter = null; return render(); }
+  if(e.target.closest("#clearcat")){ catFilter = null; return render(); }
+  const c = e.target.closest("[data-cat]");
+  if(c){ catFilter = c.dataset.cat; catsOpen = false; return render(); }
+  const d = e.target.closest("[data-del]"); if(!d) return;
+  mems.splice(+d.dataset.del,1); render();
+});
+
+// ponytail: demo parser standing in for POST /api/ai/parse (Gemini, JSON schema).
+// Same output shape, so swapping in the real call touches only this function.
+const TASK_RE = /(צריך|תזכיר|לזכור|להזמין|תור|למלא|לשלוח)/;
+function parse(text){
+  const out = [];
+  for(const part of text.split(/\s+ו(?=צריך|תזכיר)/)){
+    const num = part.match(/(\d+(?:[.,]\d{1,2})?)/);
+    const amount = num ? Math.round(parseFloat(num[1].replace(",","."))*100) : null;
+    const hint = Object.keys(HINTS).find(h=>part.includes(h));
+    if(!amount){
+      out.push(TASK_RE.test(part)
+        ? {type:"task", title:part.trim(), conf:{title:.9}}
+        : {type:"journal", body:part.trim(), conf:{body:.9}});
+      continue;
+    }
+    const income = /(קיבלתי|משכורת|החזר|הכנסה)/.test(part);
+    out.push({
+      type: income ? "income" : "expense",
+      amount,
+      merchant: hint || part.replace(/\d+(?:[.,]\d{1,2})?/,"").trim().split(/\s+/).slice(0,2).join(" "),
+      category: hint ? HINTS[hint] : "",
+      date: TODAY,
+      conf: {amount:.95, merchant: hint?.92:.55, category: hint?.9:.35}
+    });
+    if(TASK_RE.test(part)) out.push({type:"task", title:part.slice(part.search(TASK_RE)).trim(), conf:{title:.8}});
+  }
+  return out;
+}
+
+const KINDS = {expense:"הוצאה", income:"הכנסה", task:"משימה", journal:"יומן", meal:"ארוחה"};
+const esc = s => String(s??"").replace(/"/g,"&quot;");
+function field(label,id,val,c,extra){
+  const low = c!==undefined && c<.8;
+  return `<div class="f ${low?"low":""}"><label for="${id}">${label}</label>
+    <input id="${id}" value="${esc(val)}" ${extra||""} ${c!==undefined&&c<.5?"data-first":""}></div>`;
+}
+
+function openSheet(raw, items){
+  sheet.innerHTML = `<div class="grip"></div>
+    <h3>${items.length>1 ? items.length+" רישומים" : "רישום חדש"}</h3>
+    <p class="raw">״${raw}״</p>
+    ${items.map((it,i)=>`<div class="card" data-i="${i}">
+      <div class="kinds">${Object.entries(KINDS).map(([k,v])=>`<button type="button" data-k="${k}" aria-pressed="${k===it.type}">${v}</button>`).join("")}</div>
+      ${it.type==="task"||it.type==="journal"
+        ? field(it.type==="task"?"מה":"טקסט","t"+i, it.title||it.body, it.conf.title??it.conf.body)
+        : `<div class="f"><label for="a${i}">סכום</label>
+             <span class="big"><bdi>₪</bdi><input id="a${i}" class="big" inputmode="decimal" value="${(it.amount/100).toFixed(2)}"></span></div>`
+          + `<div class="f ${(it.conf.category??1)<.8?"low":""}"><label for="c${i}">קטגוריה</label>
+             <select id="c${i}">${(it.category?"":"<option value=''>—</option>") + CATS.map(c=>`<option ${c===it.category?"selected":""}>${c}</option>`).join("")}</select></div>`
+          + field("עסק","m"+i, it.merchant, it.conf.merchant)
+          + `<div class="f"><label for="d${i}">תאריך</label>
+             <input type="date" id="d${i}" value="${it.date}" max="${TODAY}"></div>`}
+    </div>`).join("")}
+    <div class="acts">
+      <button class="p" id="save">${items.length>1 ? "שמור הכל" : "שמור "+KINDS[items[0].type]}</button>
+      <button class="s" id="discard">בטל</button>
+    </div>`;
+
+  document.body.classList.add("open");
+  sheet.querySelectorAll(".kinds").forEach(g=>g.addEventListener("click", e=>{
+    const b = e.target.closest("button"); if(!b) return;
+    [...g.children].forEach(c=>c.setAttribute("aria-pressed","false"));
+    b.setAttribute("aria-pressed","true");
+    items[+g.closest(".card").dataset.i].type = b.dataset.k;
+  }));
+  setTimeout(()=>sheet.querySelector("[data-first]")?.focus(), 300);
+
+  $("#discard").onclick = close;
+  $("#save").onclick = ()=>{
+    const undo = [];
+    items.forEach((it,i)=>{
+      if(it.type==="task"){
+        const t = {t:$("#t"+i).value, d:TODAY}; tasks.unshift(t);
+        undo.push(()=>tasks.splice(tasks.indexOf(t),1));
+      } else if(it.type==="journal"){
+        const j = {d:TODAY, time:"עכשיו", b:$("#t"+i).value}; jots.unshift(j);
+        undo.push(()=>jots.splice(jots.indexOf(j),1));
+      } else {
+        const t = {d:$("#d"+i).value, m:$("#m"+i).value||"—",
+                   a:Math.round(parseFloat($("#a"+i).value||0)*100),
+                   k: it.type==="income"?"in":"out", c:$("#c"+i).value||"אחר"};
+        tx.unshift(t);
+        undo.push(()=>tx.splice(tx.indexOf(t),1));
+      }
+    });
+    close(); render();
+    toast("נשמר", ()=>{ undo.forEach(f=>f()); render(); });
+  };
+}
+function close(){ document.body.classList.remove("open"); $("#q").focus(); }
+$("#scrim").onclick = close;
+addEventListener("keydown", e=>{ if(e.key==="Escape" && document.body.classList.contains("open")) close(); });
+
+let hideT;
+function toast(msg, undo){
+  $("#toastMsg").textContent = msg;
+  $("#toast").classList.add("show");
+  $("#undo").onclick = ()=>{ undo(); $("#toast").classList.remove("show"); clearTimeout(hideT); };
+  clearTimeout(hideT);
+  hideT = setTimeout(()=>$("#toast").classList.remove("show"), 10000);
+}
+
+$("#comp").addEventListener("submit", e=>{
+  e.preventDefault();
+  const v = $("#q").value.trim(); if(!v) return;
+  $("#q").value = "";
+  openSheet(v, parse(v));
+});
+
+render();
+$("#q").focus();
+
+// needs https (or localhost) — silently absent on file://
+if("serviceWorker" in navigator) addEventListener("load", ()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+</script>
+</body>
+</html>
