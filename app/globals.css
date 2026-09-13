@@ -1,43 +1,41 @@
 @import "tailwindcss";
 
-/* Haifa 88 Program — two-colour rotary press on unbleached newsprint.
-   Values lifted from the Stitch design system, not re-invented. */
+/* Rounded Season — soft pitch-green and floodlight gold, everything a pill.
+   Values lifted from the Claude Design file "Mahalach - Rounded Season". */
 @theme {
-  --color-paper:   #F3EFE6;  /* aged newsprint ground */
-  --color-stock:   #FAF8F5;  /* bleached ticket stock */
-  --color-pine:    #184D34;  /* Haifa green — primary ink */
-  --color-ink:     #112818;  /* iron gall — body copy, borders */
-  --color-studio:  #E5B842;  /* broadcast yellow — active, warnings */
-  --color-redcard: #BD382B;  /* ejection red — deficits */
-  --color-rule:    #D3DCD4;  /* ledger grid lines */
+  --color-bg:    #EAF0E2;  /* grass-wash ground */
+  --color-card:  #FBFAF3;  /* card stock */
+  --color-ink:   #16302A;  /* body copy */
+  --color-muted: #53685A;  /* secondary copy */
+  --color-line:  #D7E2CE;  /* hairlines, rings */
+  --color-pitch: #16332A;  /* scoreboard, nav */
+  --color-gold:  #F5BE3E;  /* floodlight — active, mic */
+  --color-grass: #2E7D57;  /* primary action, income */
+  --color-clay:  #C8542F;  /* deficits */
+  --color-cream: #F6EFDF;  /* text on pitch */
+  --color-sage:  #9FB8A6;  /* muted text on pitch */
+  --color-note:  #DCE8D2;  /* journal sticky */
 
-  --font-display: "Frank Ruhl Libre", Georgia, serif;
-  --font-body:    "Rubik", system-ui, sans-serif;
-
-  /* the system is strictly sharp: guillotined paper, no rounded corners */
-  --radius-none: 0px;
+  --font-display: var(--font-secular), var(--font-fredoka), sans-serif;
+  --font-body:    var(--font-fredoka), "Varela Round", system-ui, sans-serif;
 }
 
 html { color-scheme: light; }
 
 body {
-  background: var(--color-paper);
+  background: var(--color-bg);
   color: var(--color-ink);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
 
-/* money and dates hold their column across ledger rows */
-.num, bdi { font-variant-numeric: tabular-nums lining-nums; unicode-bidi: isolate; }
+/* money and dates hold their column across rows */
+bdi { font-variant-numeric: tabular-nums lining-nums; unicode-bidi: isolate; }
 
-/* the only permitted curve is a physical hole-punch; everything else is square */
-.dotted-rule { border-bottom: 2px dotted var(--color-ink); }
+button { min-block-size: 44px; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--color-grass); outline-offset: 2px; }
 
-/* hard letterpress offset instead of a blurred shadow */
-.press { box-shadow: 3px 3px 0 var(--color-ink); }
-.press:active { box-shadow: 0 0 0 var(--color-ink); }
+@keyframes pulse { 0%, 100% { transform: scale(1); opacity: .45; } 50% { transform: scale(1.28); opacity: 0; } }
+.pulse { animation: pulse 2.6s ease-out infinite; }
 
-button { min-block-size: 44px; }
-:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; }
-
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

@@ -6,67 +6,121 @@ import { UserButton } from "@clerk/nextjs";
 import { ils, dm, mname, lastDay, shiftMonth, catNames, CATS } from "@/lib/format";
 
 const KINDS = { expense: "הוצאה", income: "הכנסה", task: "משימה", journal: "יומן" };
-const TABS = [["today", "היום"], ["money", "כסף"], ["journal", "יומן"], ["memory", "זיכרון"]];
+const TITLES = { today: "היום", money: "כסף", journal: "יומן", memory: "זיכרון" };
+const SUBTITLES = { money: "איך מתנהל התקציב החודש", journal: "מה שכתבת לעצמך", memory: "מה שאני זוכר עליך" };
+const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+
+// category badge: two letters on a coloured disc
+const BADGE = {
+  "אוכל בחוץ": ["אב", "#F5BE3E", "#16332A"],
+  "סופר": ["סו", "#2E7D57", "#F6EFDF"],
+  "תחבורה": ["תח", "#E1703A", "#FFF5E8"],
+  "דיור": ["די", "#6B5B95", "#F4F0FF"],
+  "בריאות": ["בר", "#4F8FBF", "#F3F9FF"],
+  "ביגוד": ["בג", "#D98BA6", "#2A1620"],
+  "בידור": ["בד", "#9BC53D", "#16332A"],
+  "אחר": ["אח", "#BFAE8C", "#2A2418"],
+};
+const badgeOf = (t) => (t.k === "in" ? ["₪", "#7FD3A3", "#16332A"] : BADGE[t.c] || BADGE["אחר"]);
+
+const card = "bg-card border-[1.5px] border-line rounded-[28px]";
 
 /* ---------- small pieces ---------- */
 
-function Row({ t }) {
+function Badge({ t, size = 40 }) {
+  const [txt, bg, fg] = badgeOf(t);
   return (
-    <li className="flex items-baseline gap-2 py-2.5 border-b border-rule last:border-b-0">
-      <span className="text-[11px] text-ink/60 w-10 shrink-0"><bdi>{dm(t.d)}</bdi></span>
-      {t.c ? <span className="border border-ink px-1 text-[10px] font-bold shrink-0">{t.c}</span> : null}
-      <span className="flex-1 min-w-0 truncate font-medium">{t.m}</span>
-      <span className={t.k === "in" ? "font-display text-[15px] font-bold text-pine" : "font-display text-[15px] font-bold text-ink"}>
-        <bdi>{ils(t.a)}</bdi>
+    <span
+      className="flex-none rounded-full grid place-items-center font-display text-[13px]"
+      style={{ width: size, height: size, background: bg, color: fg }}
+    >
+      {txt}
+    </span>
+  );
+}
+
+function Row({ t, time }) {
+  return (
+    <li className="flex items-center gap-3 py-[11px] border-t-[1.5px] border-line">
+      <Badge t={t} size={time ? 40 : 36} />
+      <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+        <b className="font-normal text-[15px] truncate">{t.m}</b>
+        <span className="text-xs text-muted">
+          {t.c || (t.k === "in" ? "הכנסה" : "")}
+          {time ? null : <> · <bdi>{dm(t.d)}</bdi></>}
+        </span>
       </span>
+      <b className={"font-display font-normal text-base " + (t.k === "in" ? "text-grass" : "text-ink")}>
+        <bdi>{(t.k === "in" ? "+" : "") + ils(t.a)}</bdi>
+      </b>
     </li>
   );
 }
 
-function Cat({ c, spent, budget, onPick }) {
-  const over = budget && spent > budget;
+function Stat({ k, v, color }) {
   return (
-    <button onClick={() => onPick(c)} className="w-full text-right py-3 border-b border-rule block">
-      <span className="flex items-baseline gap-2">
-        <b className="font-semibold">{c}</b>
-        {over ? <span className="bg-redcard text-stock text-[10px] font-bold px-1.5">חריגה</span> : null}
-        <span className="flex-1" />
-        <span className="font-display text-[15px] font-bold"><bdi>{ils(spent)}</bdi></span>
-        <span className="text-ink/40 text-sm">‹</span>
+    <div className="flex flex-col items-center gap-1 py-2.5 px-1.5 rounded-[18px] bg-white/6 min-w-0">
+      <b className="font-display font-normal text-[21px] leading-tight text-center" style={{ color }}>
+        <bdi>{v}</bdi>
+      </b>
+      <span className="text-[11px] text-sage">{k}</span>
+    </div>
+  );
+}
+
+function Cat({ c, spent, budget, onPick }) {
+  const ratio = budget ? spent / budget : 0;
+  const over = budget && spent > budget;
+  const near = !over && ratio > 0.8;
+  const [txt, bg, fg] = BADGE[c] || BADGE["אחר"];
+  return (
+    <button onClick={() => onPick(c)} className="w-full text-right py-3 border-t-[1.5px] border-line flex flex-col gap-2">
+      <span className="flex items-center gap-2.5 w-full">
+        <span className="w-[34px] h-[34px] flex-none rounded-full grid place-items-center font-display text-[13px]" style={{ background: bg, color: fg }}>
+          {txt}
+        </span>
+        <b className="flex-1 font-normal text-[15px]">{c}</b>
+        {budget ? (
+          <span
+            className={
+              "rounded-full text-[11px] px-[9px] py-1 " +
+              (over ? "bg-clay text-[#FFF5E8]" : near ? "bg-gold text-pitch" : "bg-[#DCEDE3] text-pitch")
+            }
+          >
+            {over ? "חריגה" : near ? "קרוב" : "בקצב"}
+          </span>
+        ) : null}
+        <b className="font-display font-normal text-base"><bdi>{ils(spent)}</bdi></b>
       </span>
       {budget ? (
         <>
-          <span className="block h-1.5 bg-rule mt-2 relative overflow-hidden">
+          <span className="block w-full h-3 rounded-full bg-bg relative overflow-hidden">
             <i
-              className={over ? "absolute inset-y-0 start-0 bg-redcard" : "absolute inset-y-0 start-0 bg-ink"}
-              style={{ inlineSize: Math.min(100, (spent / budget) * 100) + "%" }}
+              className={"absolute inset-y-0 start-0 rounded-full " + (over ? "bg-clay" : near ? "bg-[#E1703A]" : "bg-grass")}
+              style={{ inlineSize: Math.min(100, ratio * 100) + "%" }}
             />
           </span>
-          <span className="block text-[11px] text-ink/60 mt-1.5">
-            מתוך <bdi>{ils(budget)}</bdi> · {over ? "חריגה של" : "נשאר"} <bdi>{ils(Math.abs(budget - spent))}</bdi>
+          <span className="text-xs text-muted">
+            {over ? "חריגה של " : "נשאר "}<bdi>{ils(Math.abs(budget - spent))}</bdi> מתוך <bdi>{ils(budget)}</bdi>
           </span>
         </>
       ) : (
-        <span className="block text-[11px] text-ink/50 mt-1.5">בלי תקציב</span>
+        <span className="text-xs text-muted">בלי תקציב</span>
       )}
     </button>
   );
 }
 
-/* a field the model was unsure about gets a red dashed underline and a dot —
+/* a field the model was unsure about gets a gold "ניחוש" chip —
    the user needs to see what to check before saving */
 function Field({ label, value, onChange, conf, big, select, type, max }) {
   const low = conf !== undefined && conf < 0.8;
-  const cls = [
-    "w-full bg-transparent outline-none py-1",
-    low ? "border-b border-dashed border-redcard" : "",
-    big ? "font-display text-2xl font-black text-redcard" : "",
-  ].join(" ");
+  const cls =
+    "flex-1 min-w-0 bg-transparent border-0 outline-none p-0 " +
+    (big ? "font-display text-[30px] text-clay" : "text-base text-inherit");
   return (
-    <label className="grid grid-cols-[5.5rem_1fr] gap-2 items-center py-2 border-b border-rule last:border-b-0">
-      <span className="text-[13px] text-ink/60">
-        {low ? <span className="text-redcard">• </span> : null}{label}
-      </span>
+    <label className="flex items-center gap-3 py-3.5 border-t-[1.5px] border-line first:border-t-0">
+      <span className="w-[76px] flex-none text-[13px] text-muted">{label}</span>
       {select ? (
         <select value={value} onChange={(e) => onChange(e.target.value)} className={cls}>
           <option value="">—</option>
@@ -82,7 +136,24 @@ function Field({ label, value, onChange, conf, big, select, type, max }) {
           className={cls}
         />
       )}
+      {low ? <span className="rounded-full bg-gold text-pitch text-[11px] px-[9px] py-1">ניחוש</span> : null}
     </label>
+  );
+}
+
+function Pill({ on, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={
+        "flex-none rounded-full border-[1.5px] text-sm px-4 py-2 min-h-10 " +
+        (on ? "bg-pitch border-pitch text-cream" : "bg-transparent border-line text-muted")
+      }
+    >
+      {children}
+    </button>
   );
 }
 
@@ -209,6 +280,15 @@ export default function Ledger({ initial, today }) {
     setSheet((s) => ({ ...s, items: s.items.map((it, n) => (n === i ? { ...it, [k]: v } : it)) }));
   }
 
+  async function forget(id) {
+    await fetch("/api/memories", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    router.refresh();
+  }
+
   const cur = month === today.slice(0, 7);
   const last = cur ? +today.slice(8) : lastDay(month);
   const rows = tx.filter((t) => t.d.startsWith(month));
@@ -230,339 +310,380 @@ export default function Ledger({ initial, today }) {
     setCatsOpen(false);
   };
 
-  const monthPicker = (
-    <div className="flex items-center justify-between px-4 py-3 border-b-2 border-ink bg-stock">
-      <button
-        onClick={() => setMonth(shiftMonth(month, -1))}
-        aria-label="חודש קודם"
-        className="w-8 h-8 min-h-0 border border-ink grid place-items-center"
-      >
-        ›
-      </button>
-      <div className="flex flex-col items-center">
-        <span className="font-display text-lg font-bold">{mname(month)}</span>
-        <span className="w-24 dotted-rule mt-0.5" />
-      </div>
-      <button
-        onClick={() => setMonth(shiftMonth(month, 1))}
-        disabled={cur}
-        aria-label="חודש הבא"
-        className="w-8 h-8 min-h-0 border border-ink grid place-items-center disabled:opacity-30"
-      >
-        ‹
-      </button>
-    </div>
-  );
-
-  const summary = (
-    <>
-      <div className="grid grid-cols-2 border-2 border-ink bg-stock">
-        <div className="p-3 border-e-2 border-ink text-center">
-          <span className="block text-[11px] font-bold text-ink/60">יצא</span>
-          <b className="font-display text-2xl font-black text-redcard"><bdi>{ils(out)}</bdi></b>
-        </div>
-        <div className="p-3 text-center">
-          <span className="block text-[11px] font-bold text-ink/60">נכנס</span>
-          <b className="font-display text-2xl font-black text-pine"><bdi>{ils(inc)}</bdi></b>
-        </div>
-      </div>
-      <p className="text-[11px] text-ink/60 text-center mt-2">
-        <bdi>1–{last}</bdi> ב{mname(month).split(" ")[0]} · <bdi>{rows.length}</bdi> תנועות
-        {prev ? (
-          <>
-            {" · "}
-            {out > prev ? "יותר" : "פחות"} מ{cur ? "אותם ימים " : ""}בחודש שעבר ב־
-            <bdi>{ils(Math.abs(out - prev))}</bdi>
-          </>
-        ) : null}
-      </p>
-    </>
-  );
-
   let view;
   if (tab === "today") {
     const mine = tx.filter((t) => t.d === today);
-    const todayJots = jots.filter((j) => j.d === today);
     const todayOut = mine.filter((t) => t.k === "out").reduce((s, t) => s + t.a, 0);
-    const empty = !mine.length && !tasks.length && !todayJots.length;
+    const doneCount = tasks.filter((t) => t.done).length;
+    const lastJot = jots[0];
     view = (
-      <div className="p-4">
-        {todayOut > 0 ? (
-          <p className="font-display text-2xl font-black text-redcard mb-3"><bdi>{ils(todayOut)}</bdi></p>
-        ) : null}
-        {empty ? (
-          <p className="text-center text-ink/50 py-16">עוד לא רשמת כלום היום. מה קרה?</p>
-        ) : (
-          <>
-            {mine.length ? (
-              <ul className="bg-stock border-2 border-ink px-3">
-                {mine.map((t) => <Row key={t.id} t={t} />)}
-              </ul>
-            ) : null}
+      <div className="flex flex-col gap-3.5">
+        <section className="bg-pitch rounded-[28px] p-[18px] pb-4 text-cream">
+          <div className="flex items-center justify-between text-xs text-sage mb-3">
+            <span>לוח הניקוד · היום</span>
+            <span className="flex items-center gap-1.5">
+              <i className="w-2 h-2 rounded-full bg-gold inline-block" />
+              חי
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-2.5">
+            <Stat k="יצא היום" v={ils(todayOut)} color="#F09A63" />
+            <Stat k="משימות" v={tasks.length ? doneCount + "/" + tasks.length : "0"} color="#7FD3A3" />
+            <Stat k="מהלכים" v={mine.length} color="#F5BE3E" />
+          </div>
+        </section>
+
+        <section className={card + " px-4 py-1.5"}>
+          <div className="flex items-center justify-between pt-3 pb-2">
+            <b className="font-display font-normal text-[17px]">מה קרה היום</b>
+            <span className="text-xs text-muted"><bdi>{mine.length}</bdi> מהלכים</span>
+          </div>
+          {mine.length ? (
+            <ul>{mine.map((t) => <Row key={t.id} t={t} time />)}</ul>
+          ) : (
+            <p className="border-t-[1.5px] border-line py-6 text-center text-muted text-sm">עוד לא רשמת כלום היום. מה קרה?</p>
+          )}
+        </section>
+
+        {tasks.length ? (
+          <section className={card + " px-4 py-1.5"}>
+            <div className="pt-3 pb-2"><b className="font-display font-normal text-[17px]">על הדשא</b></div>
             {tasks.map((t) => (
-              <div key={t.id} className="flex gap-2 py-2 border-b border-rule">
-                <span className={t.done ? "line-through text-ink/40" : ""}>{t.t}</span>
-                {t.done ? <span className="text-pine">✓</span> : null}
+              <div key={t.id} className="flex items-center gap-3 py-3 border-t-[1.5px] border-line">
+                <span
+                  className={
+                    "w-[26px] h-[26px] flex-none rounded-full border-2 grid place-items-center text-[13px] text-white " +
+                    (t.done ? "border-grass bg-grass" : "border-line")
+                  }
+                >
+                  {t.done ? "✓" : ""}
+                </span>
+                <span className={"flex-1 text-[15px] " + (t.done ? "text-muted line-through" : "")}>{t.t}</span>
+                <span className="text-xs text-muted"><bdi>{dm(t.d)}</bdi></span>
               </div>
             ))}
-            {todayJots.map((j) => (
-              <div key={j.id} className="font-display text-[17px] leading-relaxed py-3 border-b border-rule">
-                {j.b}
-              </div>
-            ))}
-          </>
-        )}
+          </section>
+        ) : null}
+
+        {lastJot ? (
+          <section className="bg-note rounded-[28px] p-[18px] -rotate-[.5deg]">
+            <span className="text-xs text-[#4F6B52]">מהיומן · <bdi>{dm(lastJot.d)}</bdi></span>
+            <p className="mt-2 text-[17px] leading-[1.8] text-[#213A2B] text-pretty">{lastJot.b}</p>
+          </section>
+        ) : null}
       </div>
     );
   } else if (tab === "money") {
     view = (
-      <>
-        {monthPicker}
-        <div className="p-4">
-          {summary}
-          <h2 className="font-display text-xl font-bold mt-6 mb-1">קטגוריות</h2>
-          <div className="bg-stock border-2 border-ink px-3">
-            {(catsOpen ? names : names.slice(0, 3)).map((c) => (
-              <Cat key={c} c={c} spent={per[c] || 0} budget={budget[c]} onPick={pickCat} />
-            ))}
+      <div className="flex flex-col gap-3.5">
+        <div className={card + " rounded-full! flex items-center gap-2 p-1.5"}>
+          <button
+            onClick={() => setMonth(shiftMonth(month, -1))}
+            aria-label="חודש קודם"
+            className="w-[38px] h-[38px] min-h-0 rounded-full text-muted text-lg"
+          >
+            ›
+          </button>
+          <b className="flex-1 text-center font-display font-normal text-[17px]">{mname(month)}</b>
+          <button
+            onClick={() => setMonth(shiftMonth(month, 1))}
+            disabled={cur}
+            aria-label="חודש הבא"
+            className="w-[38px] h-[38px] min-h-0 rounded-full text-muted text-lg disabled:opacity-30"
+          >
+            ‹
+          </button>
+        </div>
+
+        <section className="bg-pitch rounded-[28px] p-[18px] text-cream grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1 pe-3 border-e-2 border-dotted border-white/20">
+            <span className="text-xs text-sage">יצא</span>
+            <b className="font-display font-normal text-[27px] text-[#F09A63]"><bdi>{ils(out)}</bdi></b>
           </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-sage">נכנס</span>
+            <b className="font-display font-normal text-[27px] text-[#7FD3A3]"><bdi>{ils(inc)}</bdi></b>
+          </div>
+          <p className="col-span-full text-[13px] text-[#CBDBCF] leading-normal">
+            <bdi>1–{last}</bdi> ב{mname(month).split(" ")[0]} · <bdi>{rows.length}</bdi> תנועות
+            {prev ? (
+              <>
+                {" · "}
+                {out > prev ? "יותר" : "פחות"} מ{cur ? "אותם ימים " : ""}בחודש שעבר ב־
+                <bdi>{ils(Math.abs(out - prev))}</bdi>
+              </>
+            ) : null}
+          </p>
+        </section>
+
+        <section className={card + " px-4 py-1.5"}>
+          <div className="pt-3 pb-1"><b className="font-display font-normal text-[17px]">קטגוריות</b></div>
+          {(catsOpen ? names : names.slice(0, 3)).map((c) => (
+            <Cat key={c} c={c} spent={per[c] || 0} budget={budget[c]} onPick={pickCat} />
+          ))}
           {!catsOpen && names.length > 3 ? (
-            <button onClick={() => setCatsOpen(true)} className="text-sm underline py-2">
+            <button onClick={() => setCatsOpen(true)} className="w-full text-sm text-grass border-t-[1.5px] border-line py-2">
               כל הקטגוריות ←
             </button>
           ) : null}
-          {!catsOpen ? (
-            <>
-              <h2 className="font-display text-xl font-bold mt-6 mb-1">תנועות</h2>
+        </section>
+
+        {!catsOpen ? (
+          <section className={card + " px-4 py-1.5"}>
+            <div className="flex items-center justify-between pt-3 pb-2">
+              <b className="font-display font-normal text-[17px]">תנועות</b>
               {catFilter ? (
                 <button
                   onClick={() => setCatFilter(null)}
-                  className="border border-ink px-2.5 py-1 min-h-0 text-[13px] mb-2"
+                  className="rounded-full bg-pitch text-cream text-[13px] px-3 py-1 min-h-0"
                 >
-                  {catFilter} <span>×</span>
+                  {catFilter} ×
                 </button>
               ) : null}
-              <ul className="bg-stock border-2 border-ink px-3">
-                {shown.map((t) => <Row key={t.id} t={t} />)}
-              </ul>
-            </>
-          ) : null}
-        </div>
-      </>
+            </div>
+            {shown.length ? (
+              <ul>{shown.map((t) => <Row key={t.id} t={t} />)}</ul>
+            ) : (
+              <p className="border-t-[1.5px] border-line py-6 text-center text-muted text-sm">אין תנועות</p>
+            )}
+          </section>
+        ) : null}
+      </div>
     );
   } else if (tab === "journal") {
     view = (
-      <div className="p-4">
+      <div className="flex flex-col gap-3.5">
         {!jots.length ? (
-          <p className="text-center text-ink/50 py-16">עוד לא כתבת כלום. מה קרה?</p>
+          <p className="text-center text-muted py-16">עוד לא כתבת כלום. מה קרה?</p>
         ) : (
-          jots.map((j) => (
-            <div key={j.id} className="mb-4">
-              <div className="text-[11px] text-ink/60"><bdi>{dm(j.d)}</bdi></div>
-              <div className="font-display text-[17px] leading-relaxed">{j.b}</div>
-            </div>
-          ))
+          jots.map((j, i) => {
+            const green = i % 2 === 1;
+            return (
+              <section
+                key={j.id}
+                className={"rounded-[28px] p-[18px] " + (green ? "bg-[#CFE3D2] rotate-[.6deg]" : "bg-note -rotate-[.7deg]")}
+              >
+                <span
+                  className={
+                    "w-[42px] h-[42px] rounded-full grid place-items-center font-display text-[13px] " +
+                    (green ? "bg-grass text-cream" : "bg-gold text-pitch")
+                  }
+                >
+                  <bdi>{dm(j.d)}</bdi>
+                </span>
+                <p className={"mt-3 text-[17px] leading-[1.8] text-pretty " + (green ? "text-[#14311F]" : "text-[#213A2B]")}>
+                  {j.b}
+                </p>
+              </section>
+            );
+          })
         )}
       </div>
     );
   } else {
     view = (
-      <div className="p-4">
-        <p className="text-[11px] text-ink/60 mb-3">נשלח לכל בקשה למודל</p>
-        {mems.map((m) => (
-          <div key={m.id} className="flex gap-2 items-start py-3 border-b border-rule">
-            <p className="flex-1">
-              {m.c}
-              <span className="block text-[11px] text-ink/50">{m.s}</span>
-            </p>
-            <span
-              className={
-                m.k === "pending"
-                  ? "text-[10px] border px-1.5 border-redcard text-redcard"
-                  : "text-[10px] border px-1.5 border-rule text-ink/60"
-              }
-            >
-              {m.k === "pending" ? "ממתין לאישור" : m.k === "inferred" ? "הוסק" : "נאמר"}
-            </span>
-            <button
-              aria-label="מחק עובדה"
-              className="min-h-0 text-ink/50 px-1"
-              onClick={async () => {
-                await fetch("/api/memories", {
-                  method: "DELETE",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ id: m.id }),
-                });
-                router.refresh();
-              }}
-            >
-              ×
-            </button>
-          </div>
-        ))}
-        <p className="text-[11px] text-ink/60 mt-5">
-          עובדות שהוסקו נשלחות למודל רק אחרי אישור. מספרי כרטיס, סיסמאות ות״ז לא נשמרים אף פעם.
+      <div className="flex flex-col gap-3.5">
+        <section className={card + " px-4 py-1.5"}>
+          <p className="text-[13px] text-muted mt-3.5 mb-2.5 leading-relaxed">
+            אני שומר רק מה שעוזר לי להבין אותך. עובדות שהוסקו נשלחות למודל רק אחרי אישור.
+          </p>
+          {mems.map((m) => (
+            <div key={m.id} className="flex items-start gap-2.5 py-[13px] border-t-[1.5px] border-line">
+              <span className="flex-1 flex flex-col gap-[3px]">
+                <b className="font-normal text-[15px] leading-[1.45]">{m.c}</b>
+                <span className="text-xs text-muted">{m.s}</span>
+              </span>
+              <span
+                className={
+                  "rounded-full text-[11px] px-2.5 py-[5px] whitespace-nowrap " +
+                  (m.k === "pending" ? "bg-gold text-pitch" : m.k === "inferred" ? "bg-[#DCEDE3] text-pitch" : "bg-bg text-muted")
+                }
+              >
+                {m.k === "pending" ? "ממתין" : m.k === "inferred" ? "הוסק" : "נאמר"}
+              </span>
+              <button
+                aria-label="לשכוח"
+                onClick={() => forget(m.id)}
+                className="w-7 h-7 min-h-0 rounded-full border-[1.5px] border-line text-muted text-sm leading-none"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </section>
+        <p className="text-xs text-muted leading-relaxed px-2">
+          מספרי כרטיס, סיסמאות ותעודת זהות לא נשמרים אף פעם. אתה יכול למחוק כל זיכרון, תמיד.
         </p>
       </div>
     );
   }
 
-  const heading =
-    tab === "today" ? "היום" : tab === "money" ? "כסף" : tab === "journal" ? "מה כתבתי" : "מה Gemini יודע עליי";
+  const d = new Date(today + "T12:00:00");
+  const subtitle = SUBTITLES[tab] || `${DAYS[d.getDay()]}, ${+today.slice(8)} ב${mname(today).split(" ")[0]}`;
+  const tabBtn = ([k, label]) => (
+    <button
+      key={k}
+      onClick={() => {
+        setTab(k);
+        setCatsOpen(false);
+        setCatFilter(null);
+      }}
+      aria-current={tab === k ? "page" : undefined}
+      className={"flex-1 rounded-full text-[13px] py-3 " + (tab === k ? "bg-cream text-pitch" : "text-sage")}
+    >
+      {label}
+    </button>
+  );
+  const tabs = Object.entries(TITLES);
 
   return (
-    <div className="w-full max-w-[430px] mx-auto min-h-dvh flex flex-col bg-paper border-x border-ink">
-      <header className="sticky top-0 z-20 bg-paper border-b-2 border-ink">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-ink/30 text-[11px]">
-          <span className="font-display font-bold">פנקס הוצאות // עונת 88/89</span>
-          <UserButton />
+    <div className="w-full max-w-[430px] mx-auto min-h-dvh flex flex-col bg-card">
+      <header className="sticky top-0 z-20 bg-card flex items-center justify-between gap-3 px-[22px] pt-[26px] pb-3.5">
+        <div className="flex flex-col gap-[3px]">
+          <span className="flex items-center gap-2">
+            <h1 className="font-display text-[26px]">{TITLES[tab]}</h1>
+            <span className="rounded-full bg-gold text-pitch text-[11px] px-[9px] py-1">
+              עונה <bdi>26/27</bdi>
+            </span>
+          </span>
+          <span className="text-[13px] text-muted">{subtitle}</span>
         </div>
-        <h1 className="font-display text-2xl font-black px-4 py-2">{heading}</h1>
+        <UserButton />
       </header>
 
-      <main className="flex-1 overflow-y-auto pb-4">{view}</main>
+      <main className="flex-1 px-4 pb-4">{view}</main>
 
-      {err ? (
-        <p className="mx-4 mb-2 border-2 border-redcard bg-stock text-redcard text-[13px] p-2">{err}</p>
-      ) : null}
+      <div className="sticky bottom-0 z-20 px-4 pb-[max(18px,env(safe-area-inset-bottom))] pt-2 bg-linear-to-t from-card from-70% to-transparent flex flex-col gap-2">
+        {err ? (
+          <p className="rounded-[20px] bg-clay text-[#FFF5E8] text-[13px] px-4 py-2.5">{err}</p>
+        ) : null}
 
-      <div className="sticky bottom-0 z-20 bg-paper border-t-2 border-ink">
-        <form onSubmit={submitText} className="flex items-stretch border-2 border-ink bg-stock m-2">
-          <span className="bg-studio text-ink px-3 py-2 font-display font-bold text-sm border-e-2 border-ink grid place-items-center select-none whitespace-nowrap">
-            מוני, תרשום:
-          </span>
+        <form onSubmit={submitText} className="flex items-center gap-2 rounded-full bg-bg border-[1.5px] border-line ps-4 p-1">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
             disabled={busy}
-            placeholder={busy ? "רגע…" : "מה קרה?"}
+            placeholder={busy ? "רגע…" : "מוני, תרשום: מה קרה?"}
             aria-label="מה קרה?"
-            className="flex-1 min-w-0 px-3 bg-transparent outline-none text-[16px]"
+            className="flex-1 min-w-0 bg-transparent outline-none text-base"
           />
-          <button
-            type="button"
-            onClick={toggleMic}
-            aria-label={recording ? "עצור הקלטה" : "הקלטה"}
-            disabled={busy}
-            className={
-              recording
-                ? "w-12 border-s-2 border-ink grid place-items-center bg-redcard text-stock"
-                : "w-12 border-s-2 border-ink grid place-items-center"
-            }
-          >
-            {recording ? "■" : "●"}
-          </button>
           <button
             type="submit"
             aria-label="שלח"
             disabled={busy}
-            className="w-12 bg-pine text-stock grid place-items-center"
+            className="w-10 h-10 min-h-0 rounded-full bg-grass text-cream grid place-items-center"
           >
-            →
+            ←
           </button>
         </form>
 
-        <nav className="flex border-t border-ink">
-          {TABS.map(([k, label]) => (
-            <button
-              key={k}
-              onClick={() => {
-                setTab(k);
-                setCatsOpen(false);
-                setCatFilter(null);
-              }}
-              aria-current={tab === k ? "page" : undefined}
-              className={tab === k ? "flex-1 py-3 text-sm bg-pine text-stock font-bold" : "flex-1 py-3 text-sm text-ink/70"}
-            >
-              {label}
-            </button>
-          ))}
+        <nav className="relative flex items-center gap-0.5 bg-pitch rounded-full p-2 shadow-[0_14px_30px_rgba(22,51,42,.32)]">
+          {tabs.slice(0, 2).map(tabBtn)}
+          <button
+            onClick={toggleMic}
+            aria-label={recording ? "עצור הקלטה" : "הקלטה"}
+            disabled={busy}
+            className={
+              "flex-none w-[62px] h-[62px] -mt-4 mx-0.5 border-4 border-pitch rounded-full grid place-items-center relative shadow-[0_6px_16px_rgba(0,0,0,.28)] " +
+              (recording ? "bg-clay" : "bg-gold")
+            }
+          >
+            {recording ? (
+              <span className="relative w-4 h-4 rounded-[4px] bg-cream" />
+            ) : (
+              <>
+                <span className="absolute -inset-1 rounded-full bg-gold pulse" />
+                <span className="relative w-3.5 h-[22px] rounded-full bg-pitch shadow-[0_14px_0_-5px_#16332A]" />
+              </>
+            )}
+          </button>
+          {tabs.slice(2).map(tabBtn)}
         </nav>
       </div>
 
       {sheet ? (
         <>
-          <div className="fixed inset-0 bg-ink/25 z-30" onClick={() => setSheet(null)} />
+          <div className="fixed inset-0 bg-pitch/45 z-30" onClick={() => setSheet(null)} />
           <section
             role="dialog"
             aria-modal="true"
-            aria-label="אישור רישום"
-            className="fixed bottom-0 inset-x-0 mx-auto max-w-[430px] z-40 bg-stock border-2 border-ink max-h-[88dvh] overflow-y-auto p-4"
+            aria-label="אישור מהלך"
+            className="fixed bottom-0 inset-x-0 mx-auto max-w-[430px] z-40 bg-card rounded-t-[34px] max-h-[92dvh] overflow-y-auto px-5 pt-2.5 pb-6 shadow-[0_-12px_40px_rgba(22,51,42,.22)]"
           >
-            <h3 className="font-display text-xl font-bold">
-              {sheet.items.length > 1 ? sheet.items.length + " רישומים" : "רישום חדש"}
-            </h3>
-            <p className="text-[13px] text-ink/60 mb-3">״{sheet.raw}״</p>
+            <div className="w-[46px] h-[5px] rounded-full bg-line mx-auto mb-3.5" />
+            <div className="flex items-center gap-3 mb-3.5">
+              <span className="w-[46px] h-[46px] flex-none rounded-full bg-gold text-pitch grid place-items-center font-display text-base">
+                מ
+              </span>
+              <span className="flex flex-col gap-[3px] min-w-0">
+                <b className="font-display font-normal text-lg">
+                  {sheet.items.length > 1 ? sheet.items.length + " מהלכים, בוא נאשר" : "שמעתי, בוא נאשר"}
+                </b>
+                <span className="text-[13px] text-muted">״{sheet.raw}״</span>
+              </span>
+            </div>
 
             {sheet.items.map((it, i) => (
-              <div key={i} className="border-2 border-ink p-3 mb-3 bg-paper">
-                <div className="flex gap-1.5 flex-wrap mb-2">
+              <div key={i} className="mb-4">
+                <div className="flex gap-1.5 mb-3 overflow-x-auto pb-0.5">
                   {Object.entries(KINDS).map(([k, v]) => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => patch(i, "type", k)}
-                      aria-pressed={it.type === k}
-                      className={
-                        it.type === k
-                          ? "min-h-0 px-2.5 py-1 text-[13px] border border-ink bg-ink text-stock"
-                          : "min-h-0 px-2.5 py-1 text-[13px] border border-ink"
-                      }
-                    >
+                    <Pill key={k} on={it.type === k} onClick={() => patch(i, "type", k)}>
                       {v}
-                    </button>
+                    </Pill>
                   ))}
                 </div>
 
-                {it.type === "task" || it.type === "journal" ? (
-                  <Field
-                    label={it.type === "task" ? "מה" : "טקסט"}
-                    value={it.type === "task" ? it.title : it.body}
-                    onChange={(v) => patch(i, it.type === "task" ? "title" : "body", v)}
-                  />
-                ) : (
-                  <>
+                <div className="bg-bg rounded-[26px] px-4 py-1.5">
+                  {it.type === "task" || it.type === "journal" ? (
                     <Field
-                      label="סכום"
-                      big
-                      conf={it.conf.amount}
-                      value={it.amount == null ? "" : (it.amount / 100).toFixed(2)}
-                      onChange={(v) => patch(i, "amount", Math.round(parseFloat(v || 0) * 100))}
+                      label={it.type === "task" ? "מה" : "טקסט"}
+                      value={it.type === "task" ? it.title : it.body}
+                      onChange={(v) => patch(i, it.type === "task" ? "title" : "body", v)}
                     />
-                    <Field
-                      label="קטגוריה"
-                      conf={it.conf.category}
-                      select
-                      value={it.category}
-                      onChange={(v) => patch(i, "category", v)}
-                    />
-                    <Field
-                      label="עסק"
-                      conf={it.conf.merchant}
-                      value={it.merchant}
-                      onChange={(v) => patch(i, "merchant", v)}
-                    />
-                    <Field
-                      label="תאריך"
-                      type="date"
-                      value={it.date}
-                      max={today}
-                      onChange={(v) => patch(i, "date", v)}
-                    />
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <Field
+                        label="סכום"
+                        big
+                        conf={it.conf.amount}
+                        value={it.amount == null ? "" : (it.amount / 100).toFixed(2)}
+                        onChange={(v) => patch(i, "amount", Math.round(parseFloat(v || 0) * 100))}
+                      />
+                      <Field
+                        label="קטגוריה"
+                        conf={it.conf.category}
+                        select
+                        value={it.category}
+                        onChange={(v) => patch(i, "category", v)}
+                      />
+                      <Field
+                        label="עסק"
+                        conf={it.conf.merchant}
+                        value={it.merchant}
+                        onChange={(v) => patch(i, "merchant", v)}
+                      />
+                      <Field
+                        label="תאריך"
+                        type="date"
+                        value={it.date}
+                        max={today}
+                        onChange={(v) => patch(i, "date", v)}
+                      />
+                    </>
+                  )}
+                </div>
               </div>
             ))}
 
-            <div className="flex gap-2">
+            <div className="flex gap-2.5 items-center">
               <button
                 onClick={save}
                 disabled={busy}
-                className="flex-1 bg-pine text-stock font-bold border-2 border-ink press"
+                className="flex-1 rounded-full bg-grass text-cream font-display text-[17px] p-4 shadow-[0_6px_0_#1F5A3D] active:translate-y-1 active:shadow-[0_2px_0_#1F5A3D] disabled:opacity-60"
               >
-                {busy ? "שומר…" : sheet.items.length > 1 ? "שמור הכל" : "שמור " + KINDS[sheet.items[0].type]}
+                {busy ? "שומר…" : sheet.items.length > 1 ? "שומר את כל המהלכים" : "שומר את המהלך"}
               </button>
-              <button onClick={() => setSheet(null)} className="px-5 text-ink/60">
+              <button onClick={() => setSheet(null)} className="px-4 text-[15px] text-muted">
                 בטל
               </button>
             </div>
@@ -571,9 +692,9 @@ export default function Ledger({ initial, today }) {
       ) : null}
 
       {toast ? (
-        <div className="fixed bottom-32 inset-x-0 mx-auto w-max max-w-[90%] z-50 bg-ink text-stock px-4 py-2.5 flex items-center gap-4 text-sm">
+        <div className="fixed bottom-44 inset-x-0 mx-auto w-max max-w-[90%] z-50 rounded-full bg-pitch text-cream ps-5 pe-2 py-1.5 flex items-center gap-4 text-sm shadow-lg">
           <span>{toast.msg}</span>
-          <button onClick={toast.undo} className="min-h-0 underline font-bold">
+          <button onClick={toast.undo} className="min-h-9 rounded-full bg-gold text-pitch px-4">
             בטל
           </button>
         </div>

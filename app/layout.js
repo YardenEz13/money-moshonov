@@ -1,17 +1,16 @@
 import { ClerkProvider } from "@clerk/nextjs";
-import { Frank_Ruhl_Libre, Rubik } from "next/font/google";
+import { Fredoka, Secular_One } from "next/font/google";
 import RegisterSW from "@/components/RegisterSW";
 import "./globals.css";
 
-const display = Frank_Ruhl_Libre({
-  variable: "--font-frank",
+const display = Secular_One({
+  variable: "--font-secular",
   subsets: ["hebrew", "latin"],
-  weight: ["400", "500", "700", "900"],
+  weight: "400",
 });
-const body = Rubik({
-  variable: "--font-rubik",
+const body = Fredoka({
+  variable: "--font-fredoka",
   subsets: ["hebrew", "latin"],
-  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata = {
@@ -23,7 +22,7 @@ export const metadata = {
 };
 
 export const viewport = {
-  themeColor: "#F3EFE6",
+  themeColor: "#EAF0E2",
   viewportFit: "cover",
   width: "device-width",
   initialScale: 1,
