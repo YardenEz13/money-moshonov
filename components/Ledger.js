@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { ils, dm, mname, lastDay, shiftMonth, catNames, CATS } from "@/lib/format";
+import { api, report } from "@/lib/api";
+import Import from "@/components/Import";
 
 const KINDS = { expense: "הוצאה", income: "הכנסה", task: "משימה", journal: "יומן" };
 const TITLES = { today: "היום", money: "כסף", journal: "יומן", memory: "זיכרון" };
@@ -19,6 +21,10 @@ const BADGE = {
   "בריאות": ["בר", "#4F8FBF", "#F3F9FF"],
   "ביגוד": ["בג", "#D98BA6", "#2A1620"],
   "בידור": ["בד", "#9BC53D", "#16332A"],
+  "חשבונות": ["חש", "#3E8E9C", "#F1FAFB"],
+  "מנויים": ["מנ", "#B06FC7", "#FBF3FF"],
+  "ביטוח": ["בט", "#5C7A99", "#F2F6FA"],
+  "עמלות": ["עמ", "#A7503A", "#FFF3EE"],
   "אחר": ["אח", "#BFAE8C", "#2A2418"],
 };
 const badgeOf = (t) => (t.k === "in" ? ["₪", "#7FD3A3", "#16332A"] : BADGE[t.c] || BADGE["אחר"]);
@@ -28,47 +34,6 @@ const card = "bg-card border-[1.5px] border-line rounded-[28px]";
 const MAX_REC_S = 60;
 // base64 inflates by 4/3, so 3MB of audio stays under Vercel's 4.5MB request body cap
 const MAX_AUDIO_BYTES = 3_000_000;
-
-// One error story for every call: the route's JSON error if it sent one, the HTTP status
-// if it didn't (a 413 from the platform is an HTML page, not JSON).
-// Fire-and-forget error report to /api/log, so failures on the user's phone reach us.
-// keepalive lets it finish even if the page is closing.
-function report(message, detail = {}) {
-  try {
-    fetch("/api/log", {
-      method: "POST",
-      keepalive: true,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        message,
-        detail: { ...detail, path: location.pathname, ua: navigator.userAgent.slice(0, 160), online: navigator.onLine },
-      }),
-    }).catch(() => {});
-  } catch {
-    // reporting must never become its own failure
-  }
-}
-
-async function api(url, method, body) {
-  let r;
-  try {
-    r = await fetch(url, {
-      method,
-      headers: { "content-type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  } catch (e) {
-    report("network: " + url, { method, error: String(e?.message || e) });
-    throw new Error("אין חיבור לשרת");
-  }
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    const msg = j.error || (r.status === 413 ? "ההקלטה ארוכה מדי" : "HTTP " + r.status);
-    report("api " + r.status + ": " + url, { method, error: msg });
-    throw new Error(msg);
-  }
-  return j;
-}
 
 /* ---------- small pieces ---------- */
 
@@ -95,6 +60,7 @@ function Row({ t, time }) {
           {time ? null : <> · <bdi>{dm(t.d)}</bdi></>}
         </span>
         {t.note ? <span className="text-xs text-muted truncate">{t.note}</span> : null}
+        {t.r ? <span className="self-start rounded-full bg-note text-pitch text-[10px] px-2 py-0.5">קבוע</span> : null}
       </span>
       <b className={"font-display font-normal text-base " + (t.k === "in" ? "text-grass" : "text-ink")}>
         <bdi>{(t.k === "in" ? "+" : "") + ils(t.a)}</bdi>
@@ -338,6 +304,7 @@ export default function Ledger({ initial, today }) {
   const [catsOpen, setCatsOpen] = useState(false);
   const [catFilter, setCatFilter] = useState(null);
   const [editBudgets, setEditBudgets] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -617,6 +584,17 @@ export default function Ledger({ initial, today }) {
           </p>
         </section>
 
+        <button
+          onClick={() => setImportOpen(true)}
+          className={card + " w-full text-right px-4 py-3 flex items-center gap-3"}
+        >
+          <span className="flex-1">
+            <b className="block font-display font-normal text-[17px]">ייבוא דפי חשבון</b>
+            <span className="text-xs text-muted">שנה של בנק ואשראי, מסודרת לפי חודשים וקטגוריות</span>
+          </span>
+          <span className="text-muted text-lg">‹</span>
+        </button>
+
         <section className={card + " px-4 py-1.5"}>
           <div className="flex items-center justify-between pt-3 pb-1">
             <b className="font-display font-normal text-[17px]">קטגוריות</b>
@@ -871,6 +849,16 @@ export default function Ledger({ initial, today }) {
           {tabs.slice(2).map(tabBtn)}
         </nav>
       </div>
+
+      {importOpen ? (
+        <Import
+          existing={tx}
+          onClose={(changed) => {
+            setImportOpen(false);
+            if (changed) router.refresh();
+          }}
+        />
+      ) : null}
 
       {sheet ? (
         <>
