@@ -26,7 +26,8 @@ export async function POST(req) {
   let userId;
   try {
     userId = await userIdForToken(token);
-  } catch {
+  } catch (e) {
+    console.error("[shortcut] token lookup", e);
     return say("שגיאת שרת", 500);
   }
   if (!userId) return say("טוקן לא תקין. צור חדש באפליקציה, בלשונית זיכרון.", 401);
@@ -50,6 +51,7 @@ export async function POST(req) {
       (it.conf.amount < 0.8 || it.conf.category < 0.8 || !it.category));
     return say(`נרשם: ${summary(items)}${shaky ? "\nכדאי לבדוק באפליקציה" : ""}`);
   } catch (e) {
+    console.error("[shortcut]", e);
     return say(`לא נרשם: ${String(e?.message || e).slice(0, 200)}`, 500);
   }
 }

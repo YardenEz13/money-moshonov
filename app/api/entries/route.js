@@ -1,6 +1,9 @@
 import { saveEntries, deleteEntries } from "@/lib/db";
 
-const fail = (e, status = 400) => Response.json({ error: String(e?.message || e) }, { status });
+const fail = (e, status = 400) => {
+  console.error("[entries]", e);
+  return Response.json({ error: String(e?.message || e) }, { status });
+};
 
 export async function POST(req) {
   try {
