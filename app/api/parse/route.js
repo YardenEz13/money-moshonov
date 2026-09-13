@@ -2,6 +2,9 @@ import { parseText, parseAudio } from "@/lib/gemini";
 import { memoriesForPrompt } from "@/lib/db";
 import { todayIso } from "@/lib/format";
 
+// retries + model fallback can outlast the default function timeout
+export const maxDuration = 60;
+
 export async function POST(req) {
   try {
     const body = await req.json();

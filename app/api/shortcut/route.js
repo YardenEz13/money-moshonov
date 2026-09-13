@@ -2,6 +2,9 @@ import { userIdForToken, saveEntries, memoriesForPrompt } from "@/lib/db";
 import { parseText } from "@/lib/gemini";
 import { ils, todayIso } from "@/lib/format";
 
+// retries + model fallback can outlast the default function timeout
+export const maxDuration = 60;
+
 // iPhone Shortcut: Dictate Text → Get Contents of URL (POST, Bearer token) → Show Result.
 // No confirm sheet, so the reply says exactly what was written and flags anything shaky.
 // Auth is the token, not a Clerk session — this path is public in proxy.js.
