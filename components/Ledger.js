@@ -31,14 +31,42 @@ const MAX_AUDIO_BYTES = 3_000_000;
 
 // One error story for every call: the route's JSON error if it sent one, the HTTP status
 // if it didn't (a 413 from the platform is an HTML page, not JSON).
+// Fire-and-forget error report to /api/log, so failures on the user's phone reach us.
+// keepalive lets it finish even if the page is closing.
+function report(message, detail = {}) {
+  try {
+    fetch("/api/log", {
+      method: "POST",
+      keepalive: true,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        message,
+        detail: { ...detail, path: location.pathname, ua: navigator.userAgent.slice(0, 160), online: navigator.onLine },
+      }),
+    }).catch(() => {});
+  } catch {
+    // reporting must never become its own failure
+  }
+}
+
 async function api(url, method, body) {
-  const r = await fetch(url, {
-    method,
-    headers: { "content-type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let r;
+  try {
+    r = await fetch(url, {
+      method,
+      headers: { "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (e) {
+    report("network: " + url, { method, error: String(e?.message || e) });
+    throw new Error("אין חיבור לשרת");
+  }
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || (r.status === 413 ? "ההקלטה ארוכה מדי" : "HTTP " + r.status));
+  if (!r.ok) {
+    const msg = j.error || (r.status === 413 ? "ההקלטה ארוכה מדי" : "HTTP " + r.status);
+    report("api " + r.status + ": " + url, { method, error: msg });
+    throw new Error(msg);
+  }
   return j;
 }
 
@@ -182,10 +210,19 @@ function Shortcut() {
   const [copied, setCopied] = useState(false);
   const [err, setErr] = useState(null);
   const [url, setUrl] = useState("/api/shortcut");
+  const [recent, setRecent] = useState(undefined);
+
+  const load = () =>
+    api("/api/shortcut/token", "GET")
+      .then((j) => {
+        setCreated(j.createdAt);
+        setRecent(j.recent || []);
+      })
+      .catch((e) => setErr(e.message));
 
   useEffect(() => {
     setUrl(window.location.origin + "/api/shortcut");
-    api("/api/shortcut/token", "GET").then((j) => setCreated(j.createdAt)).catch((e) => setErr(e.message));
+    load();
   }, []);
 
   async function mint() {
@@ -228,12 +265,63 @@ function Shortcut() {
         {created ? "צור טוקן חדש" : "צור טוקן"}
       </button>
 
-      <ol className="list-decimal ps-5 mt-4 text-[13px] space-y-1.5">
-        <li>באפליקציית קיצורים: <b dir="ltr">Dictate Text</b> (שפה: עברית)</li>
+      <div className="mt-4">
+        <div className="flex items-center justify-between">
+          <b className="text-[13px] font-normal">קריאות אחרונות מהקיצור</b>
+          <button onClick={load} className="min-h-8 rounded-full border-[1.5px] border-line text-muted px-3 text-xs">
+            רענן
+          </button>
+        </div>
+        {recent === undefined ? null : recent.length ? (
+          <ul className="mt-1 text-xs">
+            {recent.map((r, i) => (
+              <li key={i} className="py-2 border-t-[1.5px] border-line first:border-t-0">
+                <span className="flex gap-2 items-center">
+                  <span
+                    className={
+                      "rounded-full px-2 py-0.5 text-[11px] " +
+                      (r.status === 200 ? "bg-[#DCEDE3] text-pitch" : "bg-clay text-[#FFF5E8]")
+                    }
+                  >
+                    <bdi>{r.status}</bdi>
+                  </span>
+                  <bdi className="text-muted">
+                    {dm(r.at.slice(0, 10))}{" "}
+                    {new Date(r.at).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}
+                  </bdi>
+                  <span className="text-muted">{r.detail?.input === "audio" ? "הקלטה" : "טקסט"}</span>
+                </span>
+                <span className="block mt-1 whitespace-pre-line">{r.message}</span>
+                {r.detail?.heard ? <span className="block text-muted">שמעתי: {r.detail.heard}</span> : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-muted mt-1">
+            לא הגיעה אף קריאה מהקיצור. אם הרצת אותו, הוא נעצר באייפון לפני השליחה, בדרך כלל בשלב Dictate Text.
+            נסה את גרסת ההקלטה למטה.
+          </p>
+        )}
+      </div>
+
+      <b className="block text-[13px] font-normal mt-5">גרסה 1: הכתבה</b>
+      <ol className="list-decimal ps-5 mt-1 text-[13px] space-y-1.5">
+        <li><b dir="ltr">Dictate Text</b> (שפה: עברית)</li>
         <li><b dir="ltr">Get Contents of URL</b> לכתובת <code dir="ltr" className="break-all">{url}</code></li>
         <li>Method <b dir="ltr">POST</b> · Header <code dir="ltr">Authorization</code> = <code dir="ltr">Bearer</code> + רווח + הטוקן</li>
         <li>Request Body <b dir="ltr">JSON</b> · מפתח <code dir="ltr">text</code> = <i>Dictated Text</i></li>
-        <li><b dir="ltr">Show Result</b> — מציג מה נרשם</li>
+        <li><b dir="ltr">Show Result</b></li>
+      </ol>
+      <p className="text-xs text-muted mt-1">
+        אם ההכתבה לא נפתחת: הגדרות › כללי › מקלדת › הפעל הכתבה, והוסף מקלדת עברית.
+      </p>
+
+      <b className="block text-[13px] font-normal mt-4">גרסה 2: הקלטה, עוקפת את ההכתבה של iOS</b>
+      <ol className="list-decimal ps-5 mt-1 text-[13px] space-y-1.5">
+        <li><b dir="ltr">Record Audio</b> · Finish Recording: <b dir="ltr">On Tap</b></li>
+        <li><b dir="ltr">Get Contents of URL</b> לאותה כתובת, <b dir="ltr">POST</b>, אותה כותרת Authorization</li>
+        <li>Request Body <b dir="ltr">File</b> = <i>Recorded Audio</i></li>
+        <li><b dir="ltr">Show Result</b></li>
       </ol>
     </section>
   );
@@ -259,6 +347,17 @@ export default function Ledger({ initial, today }) {
   const [recording, setRecording] = useState(false);
   const [recLeft, setRecLeft] = useState(MAX_REC_S);
   const rec = useRef(null);
+
+  useEffect(() => {
+    const onError = (e) => report("uncaught: " + (e.message || "error"), { source: e.filename, line: e.lineno });
+    const onReject = (e) => report("unhandled rejection", { error: String(e.reason?.message || e.reason) });
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onReject);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onReject);
+    };
+  }, []);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -320,8 +419,14 @@ export default function Ledger({ initial, today }) {
         stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
         const blob = new Blob(chunks, { type: mr.mimeType });
-        if (!blob.size) return setErr("ההקלטה ריקה");
-        if (blob.size > MAX_AUDIO_BYTES) return setErr("ההקלטה ארוכה מדי. נסה משפט קצר יותר.");
+        if (!blob.size) {
+          report("recorder: empty blob", { mimeType: mr.mimeType, chunks: chunks.length });
+          return setErr("ההקלטה ריקה");
+        }
+        if (blob.size > MAX_AUDIO_BYTES) {
+          report("recorder: too large", { mimeType: mr.mimeType, bytes: blob.size });
+          return setErr("ההקלטה ארוכה מדי. נסה משפט קצר יותר.");
+        }
         const b64 = await new Promise((res) => {
           const fr = new FileReader();
           fr.onloadend = () => res(String(fr.result).split(",")[1]);
@@ -333,8 +438,15 @@ export default function Ledger({ initial, today }) {
       rec.current = mr;
       mr.start();
       setRecording(true);
-    } catch {
-      setErr("אין גישה למיקרופון");
+    } catch (e) {
+      // NotAllowedError = permission denied, NotFoundError = no mic, TypeError = no MediaRecorder
+      report("mic: " + (e?.name || "error"), {
+        error: String(e?.message || e),
+        secure: window.isSecureContext,
+        hasMediaDevices: !!navigator.mediaDevices,
+        hasRecorder: typeof MediaRecorder !== "undefined",
+      });
+      setErr(e?.name === "NotAllowedError" ? "אין הרשאה למיקרופון. אשר בהגדרות הדפדפן." : "ההקלטה לא הצליחה להתחיל");
     }
   }
 
