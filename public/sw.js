@@ -1,4 +1,4 @@
-const C = "pnkas-v2";
+const C = "pnkas-v3";
 
 self.addEventListener("install", (e) => e.waitUntil(self.skipWaiting()));
 self.addEventListener("activate", (e) =>
@@ -34,7 +34,8 @@ self.addEventListener("fetch", (e) => {
     caches.match(e.request).then((hit) =>
       hit ||
       fetch(e.request).then((r) => {
-        if (r.ok && (url.pathname.startsWith("/_next/") || /\.(png|svg|ico|woff2?)$/.test(url.pathname))) {
+        // only /_next/static/ is content-hashed and immutable; anything else could go stale
+        if (r.ok && (url.pathname.startsWith("/_next/static/") || /\.(png|svg|ico|woff2?)$/.test(url.pathname))) {
           const copy = r.clone();
           caches.open(C).then((c) => c.put(e.request, copy));
         }

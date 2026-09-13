@@ -10,9 +10,11 @@ export async function POST(req) {
   const { userId } = await auth();
   let detail = {};
   try {
-    const { text, context, pdf, cardsToo, knownMerchants } = await req.json();
-    detail = pdf ? { input: "pdf", bytes: Math.round((pdf.length * 3) / 4) } : { input: "text", chars: String(text || "").length };
-    const { rows, meta } = await importChunk({
+    const { text, context, pdf, page, cardsToo, knownMerchants } = await req.json();
+    detail = pdf
+      ? { input: "pdf", page, bytes: Math.round((pdf.length * 3) / 4) }
+      : { input: "text", chars: String(text || "").length };
+    const { rows, docInfo, meta } = await importChunk({
       text: String(text || "").slice(0, 60_000),
       context: context ? String(context).slice(0, 2000) : "",
       pdf: pdf || null,
@@ -25,9 +27,9 @@ export async function POST(req) {
     const skipReasons = [...new Set(rows.filter((r) => r.kind === "skip").map((r) => r.skipReason))].slice(0, 5);
     await logEvent({
       userId, source: "import", status: 200, ms: Date.now() - t0, message: `${rows.length} rows`,
-      detail: { ...detail, kinds, from: dates[0], to: dates.at(-1), skipReasons, gemini: meta },
+      detail: { ...detail, kinds, from: dates[0], to: dates.at(-1), skipReasons, docInfo, gemini: meta },
     });
-    return Response.json({ rows, model: meta.model });
+    return Response.json({ rows, docInfo, model: meta.model });
   } catch (e) {
     console.error("[import]", e);
     await logEvent({

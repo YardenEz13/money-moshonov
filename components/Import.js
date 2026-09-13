@@ -19,6 +19,21 @@ const toBase64 = (file) =>
     fr.readAsDataURL(file);
   });
 
+// One page per model call: asked for a whole statement at once, the model skims and returns a few
+// rows; asked for one page, it reads the table fully. pdf-lib loads only when a PDF is imported.
+async function splitPdf(file) {
+  const { PDFDocument } = await import("pdf-lib");
+  const src = await PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+  const pages = [];
+  for (let i = 0; i < src.getPageCount(); i++) {
+    const doc = await PDFDocument.create();
+    const [page] = await doc.copyPages(src, [i]);
+    doc.addPage(page);
+    pages.push(await doc.saveAsBase64());
+  }
+  return pages;
+}
+
 function Section({ title, aside, children }) {
   return (
     <section className={card + " px-4 py-3"}>
@@ -53,11 +68,11 @@ export default function Import({ existing, onClose }) {
     const failed = [];
     setProgress({ done: 0, total: jobs.length });
 
-    const one = async (job) => {
+    const one = async (job, queue) => {
       const file = perFile[job.fi];
       try {
         const body = job.pdf
-          ? { pdf: job.pdf, cardsToo, knownMerchants: [...known] }
+          ? { pdf: job.pdf, page: job.page, context: file.docInfo, cardsToo, knownMerchants: [...known] }
           : {
               text: numbered(file.lines, job.start, job.end),
               context: job.start > 0 ? numbered(file.lines, 0, Math.min(6, job.start)) : "",
@@ -65,6 +80,7 @@ export default function Import({ existing, onClose }) {
               knownMerchants: [...known],
             };
         const j = await api("/api/import", "POST", body);
+        if (j.docInfo && !file.docInfo) file.docInfo = j.docInfo;
         for (const r of j.rows) {
           file.rows.push(r);
           // later chunks reuse the names earlier ones settled on, so one merchant keeps one name
@@ -75,7 +91,8 @@ export default function Import({ existing, onClose }) {
         // too much output for one call: halve the chunk and queue both halves
         if (e.tooBig && !job.pdf && job.end - job.start > 10) {
           const mid = job.start + Math.floor((job.end - job.start) / 2);
-          jobs.push({ fi: job.fi, start: job.start, end: mid }, { fi: job.fi, start: mid, end: job.end });
+          // into the queue being drained right now, or the halves would never run
+          queue.push({ fi: job.fi, start: job.start, end: mid }, { fi: job.fi, start: mid, end: job.end });
           setProgress((p) => ({ ...p, total: p.total + 1 }));
           return;
         }
@@ -84,12 +101,17 @@ export default function Import({ existing, onClose }) {
       setProgress((p) => ({ ...p, done: p.done + 1 }));
     };
 
-    let next = 0;
-    await Promise.all(
-      Array.from({ length: CONCURRENCY }, async () => {
-        while (next < jobs.length) await one(jobs[next++]);
-      })
-    );
+    const drain = async (queue) => {
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: CONCURRENCY }, async () => {
+          while (next < queue.length) await one(queue[next++], queue);
+        })
+      );
+    };
+    // first pages go first: what they say about the document (period, year) is sent with every later page
+    await drain(jobs.filter((j) => j.page === 1));
+    await drain(jobs.filter((j) => j.page !== 1));
     return failed;
   }
 
@@ -123,9 +145,16 @@ export default function Import({ existing, onClose }) {
         perFile[fi] = { name: f.name, lines, rows: [] };
         chunks.forEach((c) => jobs.push({ fi, ...c }));
       } else {
-        if (f.size > MAX_PDF_BYTES) return setErr(`${f.name} גדול מ־3MB. ייצא את הדף לפי חודשים.`);
-        perFile[fi] = { name: f.name, lines: [], rows: [] };
-        jobs.push({ fi, pdf: await toBase64(f) });
+        perFile[fi] = { name: f.name, lines: [], rows: [], docInfo: "" };
+        let pages;
+        try {
+          pages = await splitPdf(f);
+        } catch {
+          // encrypted or unusual PDFs may not split; the model can still read them whole
+          if (f.size > MAX_PDF_BYTES) return setErr(`${f.name} לא ניתן לפיצול ועולה על 3MB. ייצא אותו לפי חודשים.`);
+          pages = [await toBase64(f)];
+        }
+        pages.forEach((pdf, i) => jobs.push({ fi, pdf, page: i + 1 }));
       }
     }
     if (!jobs.length) return setErr("לא נמצאו שורות בקבצים");
@@ -315,7 +344,7 @@ export default function Import({ existing, onClose }) {
                 <ul className="text-xs text-clay">
                   {failures.map((f, i) => (
                     <li key={i}>
-                      {f.name}{f.pdf ? "" : ` · שורות ${f.start + 1}–${f.end}`}: {f.error}
+                      {f.name}{f.pdf ? ` · עמוד ${f.page}` : ` · שורות ${f.start + 1}–${f.end}`}: {f.error}
                     </li>
                   ))}
                 </ul>
