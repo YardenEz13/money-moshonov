@@ -19,7 +19,14 @@ export async function POST(req) {
       cardsToo: cardsToo !== false,
       knownMerchants: Array.isArray(knownMerchants) ? knownMerchants.map(String) : [],
     });
-    await logEvent({ userId, source: "import", status: 200, ms: Date.now() - t0, message: `${rows.length} rows`, detail: { ...detail, gemini: meta } });
+    // shape of what came back, not the rows themselves: enough to tell "short statement" from "model missed most of it"
+    const kinds = rows.reduce((a, r) => ((a[r.kind] = (a[r.kind] || 0) + 1), a), {});
+    const dates = rows.map((r) => r.date).filter(Boolean).sort();
+    const skipReasons = [...new Set(rows.filter((r) => r.kind === "skip").map((r) => r.skipReason))].slice(0, 5);
+    await logEvent({
+      userId, source: "import", status: 200, ms: Date.now() - t0, message: `${rows.length} rows`,
+      detail: { ...detail, kinds, from: dates[0], to: dates.at(-1), skipReasons, gemini: meta },
+    });
     return Response.json({ rows, model: meta.model });
   } catch (e) {
     console.error("[import]", e);
