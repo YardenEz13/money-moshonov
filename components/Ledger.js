@@ -8,17 +8,37 @@ import { ils, dm, mname, lastDay, shiftMonth, catNames, CATS } from "@/lib/forma
 const KINDS = { expense: "הוצאה", income: "הכנסה", task: "משימה", journal: "יומן" };
 const TABS = [["today", "היום"], ["money", "כסף"], ["journal", "יומן"], ["memory", "זיכרון"]];
 
+const MAX_REC_S = 60;
+// base64 inflates by 4/3, so 3MB of audio stays under Vercel's 4.5MB request body cap
+const MAX_AUDIO_BYTES = 3_000_000;
+
+// One error story for every call: the route's JSON error if it sent one, the HTTP status
+// if it didn't (a 413 from the platform is an HTML page, not JSON).
+async function api(url, method, body) {
+  const r = await fetch(url, {
+    method,
+    headers: { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || (r.status === 413 ? "ההקלטה ארוכה מדי" : "HTTP " + r.status));
+  return j;
+}
+
 /* ---------- small pieces ---------- */
 
 function Row({ t }) {
   return (
-    <li className="flex items-baseline gap-2 py-2.5 border-b border-rule last:border-b-0">
-      <span className="text-[11px] text-ink/60 w-10 shrink-0"><bdi>{dm(t.d)}</bdi></span>
-      {t.c ? <span className="border border-ink px-1 text-[10px] font-bold shrink-0">{t.c}</span> : null}
-      <span className="flex-1 min-w-0 truncate font-medium">{t.m}</span>
-      <span className={t.k === "in" ? "font-display text-[15px] font-bold text-pine" : "font-display text-[15px] font-bold text-ink"}>
-        <bdi>{ils(t.a)}</bdi>
+    <li className="py-2.5 border-b border-rule last:border-b-0">
+      <span className="flex items-baseline gap-2">
+        <span className="text-[11px] text-ink/60 w-10 shrink-0"><bdi>{dm(t.d)}</bdi></span>
+        {t.c ? <span className="border border-ink px-1 text-[10px] font-bold shrink-0">{t.c}</span> : null}
+        <span className="flex-1 min-w-0 truncate font-medium">{t.m}</span>
+        <span className={t.k === "in" ? "font-display text-[15px] font-bold text-pine" : "font-display text-[15px] font-bold text-ink"}>
+          <bdi>{ils(t.a)}</bdi>
+        </span>
       </span>
+      {t.note ? <span className="block text-[12px] text-ink/60 ps-12">{t.note}</span> : null}
     </li>
   );
 }
@@ -26,7 +46,7 @@ function Row({ t }) {
 function Cat({ c, spent, budget, onPick }) {
   const over = budget && spent > budget;
   return (
-    <button onClick={() => onPick(c)} className="w-full text-right py-3 border-b border-rule block">
+    <button onClick={() => onPick(c)} className="w-full text-right py-3 border-b border-rule last:border-b-0 block">
       <span className="flex items-baseline gap-2">
         <b className="font-semibold">{c}</b>
         {over ? <span className="bg-redcard text-stock text-[10px] font-bold px-1.5">חריגה</span> : null}
@@ -86,6 +106,70 @@ function Field({ label, value, onChange, conf, big, select, type, max }) {
   );
 }
 
+/* iPhone Shortcut: mint a bearer token (shown once) and show the exact setup */
+function Shortcut() {
+  const [created, setCreated] = useState(undefined); // undefined = still loading
+  const [token, setToken] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [err, setErr] = useState(null);
+  const [url, setUrl] = useState("/api/shortcut");
+
+  useEffect(() => {
+    setUrl(window.location.origin + "/api/shortcut");
+    api("/api/shortcut/token", "GET").then((j) => setCreated(j.createdAt)).catch((e) => setErr(e.message));
+  }, []);
+
+  async function mint() {
+    if (created && !window.confirm("טוקן חדש מבטל את הקיים — הקיצור באייפון יפסיק לעבוד עד שתעדכן אותו. להמשיך?")) return;
+    try {
+      const j = await api("/api/shortcut/token", "POST");
+      setToken(j.token);
+      setCopied(false);
+      setCreated(new Date().toISOString());
+    } catch (e) {
+      setErr(e.message);
+    }
+  }
+
+  return (
+    <section className="mt-8 border-2 border-ink bg-stock p-3">
+      <h2 className="font-display text-lg font-bold">קיצור דרך לאייפון</h2>
+      <p className="text-[13px] text-ink/70 mt-1">אומרים משפט, והוא נרשם בלי לפתוח את האפליקציה.</p>
+
+      {token ? (
+        <>
+          <p className="text-[12px] text-redcard font-bold mt-3">הטוקן מוצג פעם אחת בלבד. העתק אותו עכשיו.</p>
+          <code dir="ltr" className="block break-all bg-paper border border-ink p-2 mt-1 text-[12px]">{token}</code>
+          <button
+            onClick={() => navigator.clipboard.writeText(token).then(() => setCopied(true))}
+            className="min-h-0 border border-ink px-3 py-1 mt-2 text-[13px]"
+          >
+            {copied ? "הועתק ✓" : "העתק"}
+          </button>
+        </>
+      ) : (
+        <p className="text-[12px] text-ink/60 mt-3">
+          {created === undefined ? "…" : created ? <>טוקן פעיל מ־<bdi>{dm(created.slice(0, 10))}</bdi></> : "אין טוקן עדיין"}
+        </p>
+      )}
+
+      {err ? <p className="text-[12px] text-redcard mt-2">{err}</p> : null}
+
+      <button onClick={mint} className="press bg-pine text-stock border-2 border-ink px-4 mt-3 font-bold block">
+        {created ? "צור טוקן חדש" : "צור טוקן"}
+      </button>
+
+      <ol className="list-decimal ps-5 mt-4 text-[13px] space-y-1.5">
+        <li>באפליקציית קיצורים: <b dir="ltr">Dictate Text</b> (שפה: עברית)</li>
+        <li><b dir="ltr">Get Contents of URL</b> לכתובת <code dir="ltr" className="break-all">{url}</code></li>
+        <li>Method <b dir="ltr">POST</b> · Header <code dir="ltr">Authorization</code> = <code dir="ltr">Bearer</code> + רווח + הטוקן</li>
+        <li>Request Body <b dir="ltr">JSON</b> · מפתח <code dir="ltr">text</code> = <i>Dictated Text</i></li>
+        <li><b dir="ltr">Show Result</b> — מציג מה נרשם</li>
+      </ol>
+    </section>
+  );
+}
+
 /* ---------- main ---------- */
 
 export default function Ledger({ initial, today }) {
@@ -96,6 +180,7 @@ export default function Ledger({ initial, today }) {
   const [month, setMonth] = useState(today.slice(0, 7));
   const [catsOpen, setCatsOpen] = useState(false);
   const [catFilter, setCatFilter] = useState(null);
+  const [editBudgets, setEditBudgets] = useState(false);
 
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -103,6 +188,7 @@ export default function Ledger({ initial, today }) {
   const [toast, setToast] = useState(null);
   const [err, setErr] = useState(null);
   const [recording, setRecording] = useState(false);
+  const [recLeft, setRecLeft] = useState(MAX_REC_S);
   const rec = useRef(null);
 
   useEffect(() => {
@@ -111,24 +197,22 @@ export default function Ledger({ initial, today }) {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // small mutations: fire, then re-read server data
+  const act = (url, method, body) =>
+    api(url, method, body).then(() => router.refresh()).catch((e) => setErr(e.message));
+
   async function send(payload, raw) {
     setBusy(true);
     setErr(null);
     try {
-      const r = await fetch("/api/parse", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "parse failed");
+      const j = await api("/api/parse", "POST", payload);
       if (!j.items.length) {
         setErr("לא הצלחתי לחלץ מזה רישום. נסה שוב?");
         return;
       }
-      setSheet({ raw: j.transcript || raw, items: j.items });
+      setSheet({ raw: j.transcript || raw, items: j.items, facts: j.facts || [] });
     } catch (e) {
-      setErr(String(e.message || e));
+      setErr(e.message);
     } finally {
       setBusy(false);
     }
@@ -144,27 +228,38 @@ export default function Ledger({ initial, today }) {
 
   async function toggleMic() {
     if (recording) {
-      if (rec.current) rec.current.stop();
+      rec.current?.stop();
       return;
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream);
       const chunks = [];
+      let left = MAX_REC_S;
+      setRecLeft(left);
+      // hard stop: a forgotten recording would blow the body limit and fail with no explanation
+      const tick = setInterval(() => {
+        left -= 1;
+        setRecLeft(left);
+        if (left <= 0 && mr.state === "recording") mr.stop();
+      }, 1000);
       mr.ondataavailable = (e) => {
         if (e.data.size) chunks.push(e.data);
       };
       mr.onstop = async () => {
+        clearInterval(tick);
         stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
         const blob = new Blob(chunks, { type: mr.mimeType });
+        if (!blob.size) return setErr("ההקלטה ריקה");
+        if (blob.size > MAX_AUDIO_BYTES) return setErr("ההקלטה ארוכה מדי. נסה משפט קצר יותר.");
         const b64 = await new Promise((res) => {
           const fr = new FileReader();
           fr.onloadend = () => res(String(fr.result).split(",")[1]);
           fr.readAsDataURL(blob);
         });
         // mimeType carries a codecs= suffix the API rejects; strip it
-        send({ audio: b64, mimeType: mr.mimeType.split(";")[0] }, "הקלטה");
+        return send({ audio: b64, mimeType: mr.mimeType.split(";")[0] }, "הקלטה");
       };
       rec.current = mr;
       mr.start();
@@ -175,38 +270,38 @@ export default function Ledger({ initial, today }) {
   }
 
   async function save() {
+    // a kind switched in the sheet can leave a row with nothing to save
+    const bad = sheet.items.find((it) =>
+      it.type === "task" ? !it.title?.trim() : it.type === "journal" ? !it.body?.trim() : !(it.amount > 0)
+    );
+    if (bad) {
+      setErr("יש רישום חסר — סכום או טקסט");
+      return;
+    }
     setBusy(true);
+    setErr(null);
     try {
-      const r = await fetch("/api/entries", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ items: sheet.items }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "save failed");
+      const j = await api("/api/entries", "POST", { items: sheet.items, facts: sheet.facts });
       setSheet(null);
       router.refresh();
       setToast({
         msg: "נשמר",
         undo: async () => {
-          await fetch("/api/entries", {
-            method: "DELETE",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ refs: j.saved }),
-          });
+          await api("/api/entries", "DELETE", { refs: j.saved }).catch((e) => setErr(e.message));
           setToast(null);
           router.refresh();
         },
       });
     } catch (e) {
-      setErr(String(e.message || e));
+      setErr(e.message);
     } finally {
       setBusy(false);
     }
   }
 
   function patch(i, k, v) {
-    setSheet((s) => ({ ...s, items: s.items.map((it, n) => (n === i ? { ...it, [k]: v } : it)) }));
+    const upd = typeof k === "object" ? k : { [k]: v };
+    setSheet((s) => ({ ...s, items: s.items.map((it, n) => (n === i ? { ...it, ...upd } : it)) }));
   }
 
   const cur = month === today.slice(0, 7);
@@ -300,10 +395,24 @@ export default function Ledger({ initial, today }) {
               </ul>
             ) : null}
             {tasks.map((t) => (
-              <div key={t.id} className="flex gap-2 py-2 border-b border-rule">
+              <button
+                key={t.id}
+                onClick={() => act("/api/tasks", "PATCH", { id: t.id, done: !t.done })}
+                aria-pressed={t.done}
+                className="w-full text-right flex items-center gap-3 py-2 border-b border-rule"
+              >
+                {/* design system: selected state is a heavy ink X stamp, not a rounded check */}
+                <span
+                  className={
+                    t.done
+                      ? "w-5 h-5 shrink-0 border-2 border-ink bg-ink text-stock grid place-items-center text-[11px] font-black"
+                      : "w-5 h-5 shrink-0 border-2 border-ink"
+                  }
+                >
+                  {t.done ? "✕" : null}
+                </span>
                 <span className={t.done ? "line-through text-ink/40" : ""}>{t.t}</span>
-                {t.done ? <span className="text-pine">✓</span> : null}
-              </div>
+              </button>
             ))}
             {todayJots.map((j) => (
               <div key={j.id} className="font-display text-[17px] leading-relaxed py-3 border-b border-rule">
@@ -321,17 +430,61 @@ export default function Ledger({ initial, today }) {
         <div className="p-4">
           {summary}
           <h2 className="font-display text-xl font-bold mt-6 mb-1">קטגוריות</h2>
-          <div className="bg-stock border-2 border-ink px-3">
-            {(catsOpen ? names : names.slice(0, 3)).map((c) => (
-              <Cat key={c} c={c} spent={per[c] || 0} budget={budget[c]} onPick={pickCat} />
-            ))}
-          </div>
-          {!catsOpen && names.length > 3 ? (
-            <button onClick={() => setCatsOpen(true)} className="text-sm underline py-2">
-              כל הקטגוריות ←
+
+          {editBudgets ? (
+            <div className="bg-stock border-2 border-ink px-3">
+              {CATS.map((c) => (
+                <label key={c} className="flex items-center gap-3 py-2 border-b border-rule last:border-b-0">
+                  <span className="flex-1 font-semibold">{c}</span>
+                  <bdi className="text-ink/60">₪</bdi>
+                  <input
+                    key={c + ":" + (budget[c] || 0)}
+                    defaultValue={budget[c] ? budget[c] / 100 : ""}
+                    inputMode="decimal"
+                    placeholder="בלי"
+                    aria-label={"תקציב " + c}
+                    onBlur={(e) => {
+                      const s = e.target.value.trim().replace(",", ".");
+                      const v = parseFloat(s);
+                      if (s && !Number.isFinite(v)) {
+                        setErr("סכום לא תקין");
+                        return;
+                      }
+                      const a = s ? Math.round(v * 100) : 0;
+                      if (a !== (budget[c] || 0)) act("/api/budgets", "POST", { category: c, amount: a });
+                    }}
+                    className="w-24 min-h-0 bg-paper border border-ink px-2 py-1 font-display text-left"
+                  />
+                </label>
+              ))}
+            </div>
+          ) : names.length ? (
+            <div className="bg-stock border-2 border-ink px-3">
+              {(catsOpen ? names : names.slice(0, 3)).map((c) => (
+                <Cat key={c} c={c} spent={per[c] || 0} budget={budget[c]} onPick={pickCat} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-[13px] text-ink/50 py-3">עוד אין הוצאות או תקציבים בחודש הזה.</p>
+          )}
+
+          <div className="flex items-center justify-between gap-2">
+            {!catsOpen && !editBudgets && names.length > 3 ? (
+              <button onClick={() => setCatsOpen(true)} className="text-sm underline py-2">
+                כל הקטגוריות ←
+              </button>
+            ) : (
+              <span />
+            )}
+            <button
+              onClick={() => setEditBudgets((v) => !v)}
+              className="text-sm border-2 border-ink px-3 py-1 min-h-0 my-2"
+            >
+              {editBudgets ? "סיום" : "[ עריכת תקציבים ]"}
             </button>
-          ) : null}
-          {!catsOpen ? (
+          </div>
+
+          {!catsOpen && !editBudgets ? (
             <>
               <h2 className="font-display text-xl font-bold mt-6 mb-1">תנועות</h2>
               {catFilter ? (
@@ -342,9 +495,13 @@ export default function Ledger({ initial, today }) {
                   {catFilter} <span>×</span>
                 </button>
               ) : null}
-              <ul className="bg-stock border-2 border-ink px-3">
-                {shown.map((t) => <Row key={t.id} t={t} />)}
-              </ul>
+              {shown.length ? (
+                <ul className="bg-stock border-2 border-ink px-3">
+                  {shown.map((t) => <Row key={t.id} t={t} />)}
+                </ul>
+              ) : (
+                <p className="text-[13px] text-ink/50 py-3">אין תנועות.</p>
+              )}
             </>
           ) : null}
         </div>
@@ -369,32 +526,33 @@ export default function Ledger({ initial, today }) {
     view = (
       <div className="p-4">
         <p className="text-[11px] text-ink/60 mb-3">נשלח לכל בקשה למודל</p>
+        {!mems.length ? (
+          <p className="text-[13px] text-ink/50 py-3">
+            עוד אין עובדות. כשמשהו יציב עולה ממה שתרשום, הוא יופיע כאן לאישור.
+          </p>
+        ) : null}
         {mems.map((m) => (
           <div key={m.id} className="flex gap-2 items-start py-3 border-b border-rule">
             <p className="flex-1">
               {m.c}
               <span className="block text-[11px] text-ink/50">{m.s}</span>
             </p>
-            <span
-              className={
-                m.k === "pending"
-                  ? "text-[10px] border px-1.5 border-redcard text-redcard"
-                  : "text-[10px] border px-1.5 border-rule text-ink/60"
-              }
-            >
-              {m.k === "pending" ? "ממתין לאישור" : m.k === "inferred" ? "הוסק" : "נאמר"}
-            </span>
+            {m.k === "pending" ? (
+              <button
+                onClick={() => act("/api/memories", "PATCH", { id: m.id })}
+                className="min-h-0 text-[11px] border border-redcard text-redcard px-2 py-0.5"
+              >
+                ממתין · אשר
+              </button>
+            ) : (
+              <span className="text-[10px] border px-1.5 border-rule text-ink/60">
+                {m.k === "inferred" ? "הוסק" : "נאמר"}
+              </span>
+            )}
             <button
               aria-label="מחק עובדה"
               className="min-h-0 text-ink/50 px-1"
-              onClick={async () => {
-                await fetch("/api/memories", {
-                  method: "DELETE",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ id: m.id }),
-                });
-                router.refresh();
-              }}
+              onClick={() => act("/api/memories", "DELETE", { id: m.id })}
             >
               ×
             </button>
@@ -403,6 +561,7 @@ export default function Ledger({ initial, today }) {
         <p className="text-[11px] text-ink/60 mt-5">
           עובדות שהוסקו נשלחות למודל רק אחרי אישור. מספרי כרטיס, סיסמאות ות״ז לא נשמרים אף פעם.
         </p>
+        <Shortcut />
       </div>
     );
   }
@@ -423,7 +582,10 @@ export default function Ledger({ initial, today }) {
       <main className="flex-1 overflow-y-auto pb-4">{view}</main>
 
       {err ? (
-        <p className="mx-4 mb-2 border-2 border-redcard bg-stock text-redcard text-[13px] p-2">{err}</p>
+        <p className="mx-4 mb-2 border-2 border-redcard bg-stock text-redcard text-[13px] p-2 flex gap-2">
+          <span className="flex-1">{err}</span>
+          <button onClick={() => setErr(null)} aria-label="סגור" className="min-h-0 px-1">×</button>
+        </p>
       ) : null}
 
       <div className="sticky bottom-0 z-20 bg-paper border-t-2 border-ink">
@@ -446,11 +608,11 @@ export default function Ledger({ initial, today }) {
             disabled={busy}
             className={
               recording
-                ? "w-12 border-s-2 border-ink grid place-items-center bg-redcard text-stock"
+                ? "w-12 border-s-2 border-ink grid place-items-center bg-redcard text-stock font-display font-bold"
                 : "w-12 border-s-2 border-ink grid place-items-center"
             }
           >
-            {recording ? "■" : "●"}
+            {recording ? <bdi>{recLeft}</bdi> : "●"}
           </button>
           <button
             type="submit"
@@ -470,6 +632,7 @@ export default function Ledger({ initial, today }) {
                 setTab(k);
                 setCatsOpen(false);
                 setCatFilter(null);
+                setEditBudgets(false);
               }}
               aria-current={tab === k ? "page" : undefined}
               className={tab === k ? "flex-1 py-3 text-sm bg-pine text-stock font-bold" : "flex-1 py-3 text-sm text-ink/70"}
@@ -517,7 +680,7 @@ export default function Ledger({ initial, today }) {
                 {it.type === "task" || it.type === "journal" ? (
                   <Field
                     label={it.type === "task" ? "מה" : "טקסט"}
-                    value={it.type === "task" ? it.title : it.body}
+                    value={(it.type === "task" ? it.title : it.body) || ""}
                     onChange={(v) => patch(i, it.type === "task" ? "title" : "body", v)}
                   />
                 ) : (
@@ -525,23 +688,28 @@ export default function Ledger({ initial, today }) {
                     <Field
                       label="סכום"
                       big
-                      conf={it.conf.amount}
-                      value={it.amount == null ? "" : (it.amount / 100).toFixed(2)}
-                      onChange={(v) => patch(i, "amount", Math.round(parseFloat(v || 0) * 100))}
+                      conf={it.conf?.amount}
+                      // keep the typed text: reformatting on every keystroke made the field untypeable
+                      value={it.amountText ?? (it.amount == null ? "" : (it.amount / 100).toFixed(2))}
+                      onChange={(v) => {
+                        const f = parseFloat(v.replace(",", "."));
+                        patch(i, { amountText: v, amount: Number.isFinite(f) ? Math.round(f * 100) : null });
+                      }}
                     />
                     <Field
                       label="קטגוריה"
-                      conf={it.conf.category}
+                      conf={it.conf?.category}
                       select
-                      value={it.category}
+                      value={it.category || ""}
                       onChange={(v) => patch(i, "category", v)}
                     />
                     <Field
                       label="עסק"
-                      conf={it.conf.merchant}
-                      value={it.merchant}
+                      conf={it.conf?.merchant}
+                      value={it.merchant || ""}
                       onChange={(v) => patch(i, "merchant", v)}
                     />
+                    <Field label="הערה" value={it.note || ""} onChange={(v) => patch(i, "note", v)} />
                     <Field
                       label="תאריך"
                       type="date"
@@ -553,6 +721,12 @@ export default function Ledger({ initial, today }) {
                 )}
               </div>
             ))}
+
+            {sheet.facts.length ? (
+              <p className="text-[12px] text-ink/60 mb-3">
+                יוצע לזיכרון, ממתין לאישור: {sheet.facts.join(" · ")}
+              </p>
+            ) : null}
 
             <div className="flex gap-2">
               <button

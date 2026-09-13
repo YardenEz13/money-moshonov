@@ -1,14 +1,14 @@
 import { saveEntries, deleteEntries } from "@/lib/db";
 
+const fail = (e, status = 400) => Response.json({ error: String(e?.message || e) }, { status });
+
 export async function POST(req) {
   try {
-    const { items } = await req.json();
-    if (!Array.isArray(items) || !items.length) {
-      return Response.json({ error: "no items" }, { status: 400 });
-    }
-    return Response.json({ saved: await saveEntries(items) });
+    const { items, facts } = await req.json();
+    if (!Array.isArray(items) || !items.length) return fail("no items");
+    return Response.json({ saved: await saveEntries(items, Array.isArray(facts) ? facts : []) });
   } catch (e) {
-    return Response.json({ error: String(e.message || e) }, { status: 400 });
+    return fail(e);
   }
 }
 
@@ -19,6 +19,6 @@ export async function DELETE(req) {
     await deleteEntries(Array.isArray(refs) ? refs : []);
     return Response.json({ ok: true });
   } catch (e) {
-    return Response.json({ error: String(e.message || e) }, { status: 400 });
+    return fail(e);
   }
 }
