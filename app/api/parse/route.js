@@ -2,6 +2,9 @@ import { parseText, parseAudio } from "@/lib/gemini";
 import { memoriesForPrompt } from "@/lib/db";
 import { todayIso } from "@/lib/format";
 
+// retries + model fallback can outlast the default function timeout
+export const maxDuration = 60;
+
 export async function POST(req) {
   try {
     const body = await req.json();
@@ -15,6 +18,7 @@ export async function POST(req) {
     if (!out.items.length) return Response.json({ items: [], transcript: out.transcript });
     return Response.json(out);
   } catch (e) {
+    console.error("[parse]", e);
     // surface the reason: a missing key and a bad recording need different fixes
     return Response.json({ error: String(e.message || e) }, { status: 400 });
   }

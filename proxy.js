@@ -1,7 +1,8 @@
 // Next 16 renamed middleware -> proxy. Same behaviour, new filename.
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-const isPublic = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
+// /api/shortcut authenticates with its own bearer token; /api/shortcut/token still needs a session
+const isPublic = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)", "/api/shortcut"]);
 
 export default clerkMiddleware(async (auth, req) => {
   if (isPublic(req)) return;
