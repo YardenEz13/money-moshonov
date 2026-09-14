@@ -62,6 +62,7 @@ export default function Import({ existing, onClose }) {
   const [result, setResult] = useState(null);
   const [err, setErr] = useState(null);
   const [showSkipped, setShowSkipped] = useState(false);
+  const [openMonth, setOpenMonth] = useState(null);
   const run = useRef(null); // per-file lines and rows, shared by the first pass and retries
 
   async function runJobs(jobs) {
@@ -174,6 +175,10 @@ export default function Import({ existing, onClose }) {
   const setCategory = (merchant, category) =>
     setRows((rs) => rs.map((r) => (r.merchant === merchant && r.kind !== "skip" ? { ...r, category } : r)));
   const toggleDup = (i) => setRows((rs) => rs.map((r, n) => (n === i ? { ...r, dup: !r.dup } : r)));
+  // the model will get some rows wrong; every total on this screen is derived from rows, so a fix here is a fix everywhere
+  const setKind = (i, kind) =>
+    setRows((rs) => rs.map((r, n) => (n === i ? { ...r, kind, skipReason: kind === "skip" ? r.skipReason || "סומן ידנית" : "" } : r)));
+  const monthOf = (r) => (r.date || "").slice(0, 7) || "none";
 
   async function save() {
     setErr(null);
@@ -411,6 +416,52 @@ export default function Import({ existing, onClose }) {
                   </select>
                 </div>
               ))}
+            </Section>
+
+            <Section title="כל התנועות" aside="פתח חודש ובדוק מול התיאור מהבנק">
+              {[...new Set(rows.map(monthOf))].map((m) => {
+                const inMonth = rows.filter((r) => monthOf(r) === m).length;
+                return (
+                  <div key={m} className="border-t-[1.5px] border-line first:border-t-0">
+                    <button
+                      onClick={() => setOpenMonth(openMonth === m ? null : m)}
+                      aria-expanded={openMonth === m}
+                      className="w-full text-right py-2 flex items-center justify-between min-h-10"
+                    >
+                      <span className="text-[15px]">{m === "none" ? "בלי תאריך" : mname(m)}</span>
+                      <span className="text-xs text-muted"><bdi>{inMonth}</bdi> שורות {openMonth === m ? "▴" : "▾"}</span>
+                    </button>
+                    {openMonth === m
+                      ? rows.map((r, i) =>
+                          monthOf(r) !== m ? null : (
+                            <div key={i} className={"flex items-center gap-2 py-1.5 text-sm " + (r.kind === "skip" || r.dup ? "opacity-50" : "")}>
+                              <bdi className="text-xs text-muted w-9 shrink-0">{r.date ? dm(r.date) : "?"}</bdi>
+                              <span className="flex-1 min-w-0">
+                                <span className="block truncate">{r.merchant}</span>
+                                {r.raw && r.raw !== r.merchant ? (
+                                  <span dir="auto" className="block truncate text-[11px] text-muted">{r.raw}</span>
+                                ) : null}
+                              </span>
+                              <bdi className={"shrink-0 " + (r.kind === "in" ? "text-grass" : "")}>
+                                {(r.kind === "in" ? "+" : "") + ils(r.amount)}
+                              </bdi>
+                              <select
+                                value={r.kind}
+                                onChange={(e) => setKind(i, e.target.value)}
+                                aria-label={"סוג התנועה " + r.merchant}
+                                className="shrink-0 rounded-full border-[1.5px] border-line bg-bg px-2 py-1 text-xs"
+                              >
+                                <option value="out">הוצאה</option>
+                                <option value="in">הכנסה</option>
+                                <option value="skip">לא לספור</option>
+                              </select>
+                            </div>
+                          )
+                        )
+                      : null}
+                  </div>
+                );
+              })}
             </Section>
 
             {skipped.length ? (
