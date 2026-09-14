@@ -50,11 +50,11 @@ export async function POST(req) {
     const label = detail.input === "pdf" ? `עמוד ${detail.page ?? "?"}` : `${detail.chars ?? "?"} תווים`;
     const debug = [
       `ייבוא · ${label} נכשל · ${secs(Date.now() - t0)}`,
-      String(e?.message || e) + (e?.tooBig ? " — יפוצל ויישלח שוב" : ""),
+      String(e?.message || e) + (e?.tooBig || e?.tooSlow ? " — יפוצל ויישלח שוב" : ""),
       e?.tries ? triesText(e.tries) : null,
     ].filter(Boolean).join("\n");
     return Response.json(
-      { error: String(e?.message || e), tooBig: !!e?.tooBig, debug, level: e?.tooBig ? "warn" : "error" },
+      { error: String(e?.message || e), tooBig: !!e?.tooBig, tooSlow: !!e?.tooSlow, debug, level: e?.tooBig || e?.tooSlow ? "warn" : "error" },
       { status: 400 }
     );
   }

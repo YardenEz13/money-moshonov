@@ -6,7 +6,8 @@ import { ils, dm, mname, CATS } from "@/lib/format";
 import { decodeText, chunkLines, numbered, fingerprints, markRecurring, flagDuplicates, byMonth } from "@/lib/importing";
 
 const card = "bg-card border-[1.5px] border-line rounded-[28px]";
-const CHUNK_LINES = 80;
+// 80-line chunks timed out on every heavy model in production; smaller chunks also fail smaller
+const CHUNK_LINES = 30;
 const CONCURRENCY = 3;
 // base64 grows by 4/3, so 3MB of PDF stays under Vercel's 4.5MB request body cap
 const MAX_PDF_BYTES = 3_000_000;
@@ -88,8 +89,8 @@ export default function Import({ existing, onClose }) {
         }
         used[j.model] = (used[j.model] || 0) + 1;
       } catch (e) {
-        // too much output for one call: halve the chunk and queue both halves
-        if (e.tooBig && !job.pdf && job.end - job.start > 10) {
+        // too much output, or too slow, for one call: halve the chunk and queue both halves
+        if ((e.tooBig || e.tooSlow) && !job.pdf && job.end - job.start > 10) {
           const mid = job.start + Math.floor((job.end - job.start) / 2);
           // into the queue being drained right now, or the halves would never run
           queue.push({ fi: job.fi, start: job.start, end: mid }, { fi: job.fi, start: mid, end: job.end });
