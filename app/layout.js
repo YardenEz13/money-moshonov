@@ -1,6 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import { Fredoka, Secular_One } from "next/font/google";
 import RegisterSW from "@/components/RegisterSW";
+import DebugToasts from "@/components/DebugToasts";
 import "./globals.css";
 
 const display = Secular_One({
@@ -34,6 +35,7 @@ export default function RootLayout({ children }) {
       <body className="min-h-full flex flex-col">
         <ClerkProvider>{children}</ClerkProvider>
         <RegisterSW />
+        <DebugToasts />
       </body>
     </html>
   );

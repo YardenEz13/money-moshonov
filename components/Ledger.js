@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { ils, dm, mname, lastDay, shiftMonth, catNames, CATS } from "@/lib/format";
 import { api, report } from "@/lib/api";
+import { debugOn, setDebug, toast } from "@/lib/debug";
 import Import from "@/components/Import";
 
 const KINDS = { expense: "הוצאה", income: "הכנסה", task: "משימה", journal: "יומן" };
@@ -290,6 +291,29 @@ function Shortcut() {
         <li><b dir="ltr">Show Result</b></li>
       </ol>
     </section>
+  );
+}
+
+// read after mount: localStorage doesn't exist during server render
+function DebugSwitch() {
+  const [on, setOn] = useState(false);
+  useEffect(() => setOn(debugOn()), []);
+  return (
+    <label className={card + " px-4 py-3 flex items-center gap-3"}>
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(e) => {
+          setDebug(e.target.checked);
+          setOn(e.target.checked);
+          if (e.target.checked) toast("מצב אבחון פעיל: כל קריאה לשרת תוצג כאן");
+        }}
+      />
+      <span className="text-sm">
+        מצב אבחון
+        <span className="block text-xs text-muted">הודעה על כל קריאה לשרת: מודלים, זמנים, שורות וסיבות כשל. נשמר במכשיר הזה.</span>
+      </span>
+    </label>
   );
 }
 
@@ -759,6 +783,7 @@ export default function Ledger({ initial, today }) {
           מספרי כרטיס, סיסמאות ותעודת זהות לא נשמרים אף פעם. אתה יכול למחוק כל זיכרון, תמיד.
         </p>
         <Shortcut />
+        <DebugSwitch />
       </div>
     );
   }

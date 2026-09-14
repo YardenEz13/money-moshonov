@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { parseText, parseAudio, geminiMime } from "@/lib/gemini";
 import { memoriesForPrompt, logEvent } from "@/lib/db";
-import { todayIso } from "@/lib/format";
+import { todayIso, triesText, secs } from "@/lib/format";
 
 // retries + model fallback can outlast the default function timeout
 export const maxDuration = 60;
@@ -30,7 +30,18 @@ export async function POST(req) {
       detail: { ...detail, gemini: out.meta, heard: (out.transcript || "").slice(0, 200) },
     });
     const { meta, ...pub } = out;
-    return Response.json(out.items.length ? pub : { items: [], transcript: out.transcript });
+    // lite pass always ran; heavy only when lite escalated. Which list is which depends on whether heavy delivered.
+    const lite = meta.escalated ? meta.liteTries || meta.tries : meta.tries;
+    const heavy = meta.escalated ? meta.heavyTries || meta.tries : null;
+    const debug = [
+      `רישום · ${out.items.length} פריטים · ${secs(Date.now() - t0)}`,
+      `קל: ${triesText(lite)}`,
+      heavy ? `כבד: ${triesText(heavy)}${meta.heavyFailed ? " ✗ נשארה תשובת הקל" : ""}` : null,
+      meta.escalated ? `סיבת הסלמה: ${meta.escalated}` : null,
+      out.transcript && detail.input === "audio" ? `שמעתי: ${out.transcript.slice(0, 120)}` : null,
+    ].filter(Boolean).join("\n");
+    const level = meta.heavyFailed || !out.items.length ? "warn" : "info";
+    return Response.json({ ...(out.items.length ? pub : { items: [], transcript: out.transcript }), debug, level });
   } catch (e) {
     console.error("[parse]", e);
     await logEvent({
@@ -38,6 +49,8 @@ export async function POST(req) {
       detail: { ...detail, gemini: e?.tries ? { tries: e.tries } : undefined },
     });
     // surface the reason: a missing key and a bad recording need different fixes
-    return Response.json({ error: String(e?.message || e) }, { status: 400 });
+    const debug = [`רישום נכשל · ${secs(Date.now() - t0)}`, String(e?.message || e), e?.tries ? triesText(e.tries) : null]
+      .filter(Boolean).join("\n");
+    return Response.json({ error: String(e?.message || e), debug, level: "error" }, { status: 400 });
   }
 }
